@@ -5,16 +5,13 @@ import logging
 import networkx as nx
 from tqdm import tqdm
 
-# 设置日志
-logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+# 创建日志记录器
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger('knowledge_graph_builder')
 
 
 class KnowledgeGraphBuilder:
-    """
-    构建知识图谱的工具类
-    """
+    """构建知识图谱的工具类"""
 
     def __init__(self, neo4j_config=None):
         """
@@ -23,7 +20,7 @@ class KnowledgeGraphBuilder:
         参数:
             neo4j_config: Neo4j数据库配置，格式为字典，包含uri, user, password
         """
-        self.graph = nx.DiGraph()  # 使用NetworkX创建有向图结构
+        self.graph = nx.DiGraph()  # 使用NetworkX创建有向图
         self.neo4j_graph = None
 
         # 连接Neo4j数据库（如果提供了配置）
@@ -48,6 +45,12 @@ class KnowledgeGraphBuilder:
     def add_knowledge_points(self, knowledge_points):
         """
         将知识点添加到图谱中
+
+        参数:
+            knowledge_points: 知识点列表
+
+        返回:
+            添加的节点数量
         """
         added_count = 0
 
@@ -63,7 +66,7 @@ class KnowledgeGraphBuilder:
             # 添加概念节点（如果不存在）
             if not self.graph.has_node(concept):
                 node_type = "Concept"
-                if kp["type"] == "term":
+                if kp.get("type") == "term":
                     node_type = "Term"
 
                 # 节点属性
@@ -72,7 +75,8 @@ class KnowledgeGraphBuilder:
                     "type": node_type,
                     "definition": kp.get("definition", ""),
                     "chapter": kp.get("chapter", ""),
-                    "score": kp.get("score", 1.0),
+                    "importance": kp.get("importance", 3),
+                    "difficulty": kp.get("difficulty", 3),
                     "source_text": kp.get("source_text", "")
                 }
 
@@ -92,6 +96,12 @@ class KnowledgeGraphBuilder:
     def add_relationships(self, relationships):
         """
         将关系添加到图谱中
+
+        参数:
+            relationships: 关系列表
+
+        返回:
+            添加的关系数量
         """
         added_count = 0
 
@@ -124,12 +134,15 @@ class KnowledgeGraphBuilder:
     def infer_relationships(self):
         """
         基于现有知识点推断可能的关系
+
+        返回:
+            推断的关系数量
         """
         inferred_count = 0
 
         print("推断额外的关系...")
         # 获取所有概念节点
-        concepts = [n for n in self.graph.nodes if self.graph.nodes[n]["type"] == "Concept"]
+        concepts = [n for n in self.graph.nodes if self.graph.nodes[n].get("type") == "Concept"]
 
         # 比较每对概念，寻找可能的关系
         for concept1 in tqdm(concepts, desc="推断关系"):
@@ -140,7 +153,7 @@ class KnowledgeGraphBuilder:
                     definition2 = self.graph.nodes[concept2].get("definition", "")
 
                     # 检查概念是否出现在另一个概念的定义中
-                    if concept1 in definition2 and len(concept1) > 1:
+                    if concept1 in definition2 and len(concept1) > 2:
                         # 如果概念1出现在概念2的定义中，添加关系
                         if not self.graph.has_edge(concept2, concept1):
                             self.graph.add_edge(
@@ -159,7 +172,7 @@ class KnowledgeGraphBuilder:
                             inferred_count += 1
 
                     # 检查概念的包含关系
-                    if concept1 in concept2 and len(concept1) > 2:
+                    if concept1 in concept2 and len(concept1) > 2 and concept1 != concept2:
                         # 如果概念1是概念2的一部分，添加包含关系
                         if not self.graph.has_edge(concept2, concept1):
                             self.graph.add_edge(
@@ -177,40 +190,87 @@ class KnowledgeGraphBuilder:
 
                             inferred_count += 1
 
-            # 编译过程的标准步骤关系
-            compiler_phases = [
-                "词法分析", "语法分析", "语义分析", "中间代码生成", "代码优化", "目标代码生成"
-            ]
-
-            # 添加编译过程的顺序关系
-            for i in range(len(compiler_phases) - 1):
-                if (compiler_phases[i] in self.graph.nodes and
-                        compiler_phases[i + 1] in self.graph.nodes and
-                        not self.graph.has_edge(compiler_phases[i], compiler_phases[i + 1])):
-
-                    self.graph.add_edge(
-                        compiler_phases[i],
-                        compiler_phases[i + 1],
-                        type="IS_PREREQUISITE_OF",
-                        strength=0.9,
-                        inferred=True
-                    )
-
-                    # 添加到Neo4j（如果连接了）
-                    if self.neo4j_graph:
-                        self._add_relationship_to_neo4j(
-                            compiler_phases[i], compiler_phases[i + 1], "IS_PREREQUISITE_OF", 0.9
-                        )
-
-                    inferred_count += 1
-
         logger.info(f"推断了 {inferred_count} 个新关系")
         print(f"推断了 {inferred_count} 个新关系")
         return inferred_count
 
+    def _add_to_neo4j(self, node_attrs):
+        """
+        将节点添加到Neo4j数据库
+
+        参数:
+            node_attrs: 节点属性
+        """
+        if not self.neo4j_graph:
+            return
+
+        try:
+            # 创建Cypher查询
+            node_type = node_attrs.get("type", "Concept")
+            query = f"""
+            MERGE (n:{node_type} {{name: $name}})
+            ON CREATE SET 
+                n.definition = $definition,
+                n.chapter = $chapter,
+                n.importance = $importance,
+                n.difficulty = $difficulty
+            """
+
+            # 执行查询
+            self.neo4j_graph.run(
+                query,
+                name=node_attrs["name"],
+                definition=node_attrs.get("definition", ""),
+                chapter=node_attrs.get("chapter", ""),
+                importance=node_attrs.get("importance", 3),
+                difficulty=node_attrs.get("difficulty", 3)
+            )
+
+        except Exception as e:
+            logger.error(f"添加Neo4j节点时出错: {e}")
+
+    def _add_relationship_to_neo4j(self, source, target, relation_type, strength):
+        """
+        将关系添加到Neo4j数据库
+
+        参数:
+            source: 源节点名称
+            target: 目标节点名称
+            relation_type: 关系类型
+            strength: 关系强度
+        """
+        if not self.neo4j_graph:
+            return
+
+        try:
+            # 创建Cypher查询
+            query = f"""
+            MATCH (a), (b)
+            WHERE a.name = $source AND b.name = $target
+            MERGE (a)-[r:{relation_type}]->(b)
+            ON CREATE SET r.strength = $strength
+            """
+
+            # 执行查询
+            self.neo4j_graph.run(
+                query,
+                source=source,
+                target=target,
+                strength=strength
+            )
+
+        except Exception as e:
+            logger.error(f"添加Neo4j关系时出错: {e}")
+
     def save_to_json(self, output_path):
         """
         将知识图谱保存为JSON文件
+
+        参数:
+            output_path: 输出文件路径
+
+        返回:
+            是否保存成功
         """
         try:
             # 导出图数据
@@ -257,61 +317,3 @@ class KnowledgeGraphBuilder:
             logger.error(f"保存知识图谱时出错: {e}")
             print(f"保存知识图谱时出错: {e}")
             return False
-
-    def _add_to_neo4j(self, node_attrs):
-        """
-        将节点添加到Neo4j数据库
-        """
-        if not self.neo4j_graph:
-            return
-
-        try:
-            # 创建节点
-            node_type = node_attrs["type"]
-
-            # 构建查询
-            query = f"""
-            MERGE (n:{node_type} {{name: $name}})
-            ON CREATE SET n.definition = $definition,
-                          n.chapter = $chapter,
-                          n.score = $score
-            """
-
-            # 执行查询
-            self.neo4j_graph.run(
-                query,
-                name=node_attrs["name"],
-                definition=node_attrs.get("definition", ""),
-                chapter=node_attrs.get("chapter", ""),
-                score=node_attrs.get("score", 1.0)
-            )
-
-        except Exception as e:
-            logger.error(f"添加Neo4j节点时出错: {e}")
-
-    def _add_relationship_to_neo4j(self, source, target, relation_type, strength):
-        """
-        将关系添加到Neo4j数据库
-        """
-        if not self.neo4j_graph:
-            return
-
-        try:
-            # 构建查询
-            query = f"""
-            MATCH (a), (b)
-            WHERE a.name = $source AND b.name = $target
-            MERGE (a)-[r:{relation_type}]->(b)
-            ON CREATE SET r.strength = $strength
-            """
-
-            # 执行查询
-            self.neo4j_graph.run(
-                query,
-                source=source,
-                target=target,
-                strength=strength
-            )
-
-        except Exception as e:
-            logger.error(f"添加Neo4j关系时出错: {e}")
