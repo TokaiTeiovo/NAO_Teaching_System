@@ -1,0 +1,24 @@
+{
+  "server": {
+    "host": "localhost",
+    "port": 8765
+  },
+  "llm": {
+    "model_name": "deepseek-ai/deepseek-llm-7b-chat",
+    "model_path": "D:\\biyesheji\\Models\\deepseek-llm-7b-chat",
+    "use_lora": false
+  },
+  "emotion": {
+    "fusion_weights": {
+      "audio": 0.4,
+      "face": 0.6
+    }
+  },
+  "knowledge": {
+    "neo4j": {
+      "uri": "bolt://localhost:7687",
+      "user": "neo4j",
+      "password": "admin123"
+    }
+  }
+}
