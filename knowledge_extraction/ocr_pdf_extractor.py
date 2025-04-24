@@ -33,7 +33,7 @@ class OCRPDFExtractor:
         # 设置Tesseract路径（Windows用户需要）
         # 如果您的安装路径不同，请相应修改
         if os.name == 'nt':  # Windows系统
-            tesseract_path = r'D:\biyesheji\Tesseract-OCR'
+            tesseract_path = r'D:\biyesheji\Tesseract-OCR\tesseract.exe'
             pytesseract.pytesseract.tesseract_cmd = tesseract_path
             print(f"使用的Tesseract路径: {tesseract_path}")
             print(f"文件是否存在: {os.path.exists(tesseract_path)}")
