@@ -18,21 +18,21 @@ class LLMKnowledgeExtractor:
     使用本地大模型提取知识图谱
     """
 
-    def __init__(self, model_path=None):
+    def __init__(self, model_path=None, use_gpu=True):
         """
         初始化大模型提取器
 
         参数:
             model_path: 模型路径，如果为None则使用默认的DeepSeek模型
+            use_gpu: 是否使用GPU
         """
         self.model_path = model_path or "deepseek-ai/deepseek-llm-7b-chat"
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = "cuda" if torch.cuda.is_available() and use_gpu else "cpu"
 
         # 加载模型
         logger.info(f"加载大模型: {self.model_path}")
         print(f"加载大模型: {self.model_path}")
         self._load_model()
-
     def _load_model(self):
         """加载大模型"""
         try:
@@ -41,50 +41,67 @@ class LLMKnowledgeExtractor:
             logger.info(f"使用{'本地' if is_local_path else '远程'}模型: {self.model_path}")
             print(f"使用{'本地' if is_local_path else '远程'}模型: {self.model_path}")
 
+            # 检查GPU是否可用
+            if torch.cuda.is_available():
+                print(f"GPU可用: {torch.cuda.get_device_name(0)}")
+                print(f"GPU内存: {torch.cuda.get_device_properties(0).total_memory / 1024 ** 3:.2f} GB")
+            else:
+                print("警告: GPU不可用，将使用CPU运行")
+
             # 加载分词器
             self.tokenizer = AutoTokenizer.from_pretrained(
                 self.model_path,
                 trust_remote_code=True
             )
 
-            # 内存优化设置
-            # 使用8位量化代替4位量化，降低内存需求
-            # 注意：这会略微降低模型质量，但可以缓解内存不足问题
-            try:
-                # 首先尝试加载4位量化模型，但允许CPU卸载
-                bnb_config = BitsAndBytesConfig(
-                    load_in_4bit=True,
-                    bnb_4bit_use_double_quant=True,
-                    bnb_4bit_quant_type="nf4",
-                    bnb_4bit_compute_dtype=torch.bfloat16,
-                    llm_int8_enable_fp32_cpu_offload=True  # 启用CPU卸载
-                )# 创建自定义设备映射
-                # 这将把一些模块放在CPU上
-                print("尝试加载4位量化模型，部分模块卸载到CPU...")
+            # GPU设置
+            if torch.cuda.is_available():
+                # 获取GPU内存信息
+                gpu_mem = torch.cuda.get_device_properties(0).total_memory / 1024 ** 3  # GB
+                # 根据GPU内存大小调整量化参数
+
+                # 对于高端GPU (>12GB)，可以尝试加载全精度或半精度模型
+                if gpu_mem > 12:
+                    print(f"检测到大容量GPU ({gpu_mem:.2f}GB)，尝试加载半精度模型")
+                    self.model = AutoModelForCausalLM.from_pretrained(
+                        self.model_path,
+                        torch_dtype=torch.float16,
+                        device_map="auto",
+                        trust_remote_code=True
+                    )
+                # 对于中等GPU (8-12GB)，使用8位量化
+                elif gpu_mem > 8:
+                    print(f"检测到中等容量GPU ({gpu_mem:.2f}GB)，使用8位量化")
+                    bnb_config = BitsAndBytesConfig(
+                        load_in_8bit=True
+                    )
+                    self.model = AutoModelForCausalLM.from_pretrained(
+                        self.model_path,
+                        quantization_config=bnb_config,
+                        device_map="auto",
+                        trust_remote_code=True
+                    )
+                # 对于小型GPU (<8GB)，使用4位量化
+                else:
+                    print(f"检测到小容量GPU ({gpu_mem:.2f}GB)，使用4位量化")
+                    bnb_config = BitsAndBytesConfig(
+                        load_in_4bit=True,
+                        bnb_4bit_use_double_quant=True,
+                        bnb_4bit_quant_type="nf4",
+                        bnb_4bit_compute_dtype=torch.bfloat16
+                    )
+                    self.model = AutoModelForCausalLM.from_pretrained(
+                        self.model_path,
+                        quantization_config=bnb_config,
+                        device_map="auto",
+                        trust_remote_code=True
+                    )
+            else:
+                # 如果GPU不可用，回退到CPU
+                print("使用CPU加载模型")
                 self.model = AutoModelForCausalLM.from_pretrained(
                     self.model_path,
-                    quantization_config=bnb_config,
-                    device_map="auto",  # 自动决定分配
-                    max_memory={0: "8GiB", "cpu": "32GiB"},  # 限制GPU使用的内存，可以根据实际情况调整
-                    torch_dtype=torch.float16,
-                    trust_remote_code=True,
-                    low_cpu_mem_usage=True
-                )
-            except Exception as e:
-                print(f"4位量化加载失败: {e}")
-                print("尝试使用8位量化...")
-
-                # 如果4位量化失败，尝试8位量化
-                bnb_config = BitsAndBytesConfig(
-                    load_in_8bit=True,  # 使用8位量化
-                    llm_int8_enable_fp32_cpu_offload=True
-                )
-
-                self.model = AutoModelForCausalLM.from_pretrained(
-                    self.model_path,
-                    quantization_config=bnb_config,
-                    device_map="auto",
-                    max_memory={0: "8GiB", "cpu": "32GiB"},
+                    device_map="cpu",
                     torch_dtype=torch.float16,
                     trust_remote_code=True,
                     low_cpu_mem_usage=True
@@ -94,41 +111,8 @@ class LLMKnowledgeExtractor:
             print("模型加载完成")
 
         except Exception as e:
-
             logger.error(f"加载模型时出错: {e}")
-
             print(f"加载模型时出错: {e}")
-
-        # 如果量化模型加载失败，尝试加载到CPU上
-
-        try:
-
-            print("尝试将模型完全加载到CPU...")
-
-            self.model = AutoModelForCausalLM.from_pretrained(
-
-                self.model_path,
-
-                device_map="cpu",
-
-                torch_dtype=torch.float16,
-
-                trust_remote_code=True,
-
-                low_cpu_mem_usage=True
-
-            )
-
-            logger.info("模型已加载到CPU")
-
-            print("模型已加载到CPU")
-
-        except Exception as cpu_e:
-
-            logger.error(f"CPU加载也失败: {cpu_e}")
-
-            print(f"CPU加载也失败: {cpu_e}")
-
             raise
 
     def _generate_text(self, prompt, max_length=2048, temperature=0.7):
@@ -439,3 +423,4 @@ class LLMKnowledgeExtractor:
                     })
 
         return relationships
+

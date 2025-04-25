@@ -116,9 +116,9 @@ class OCRPDFExtractor:
                         os.remove(image_path)
 
                         # 打印前几页的OCR结果样本
-                        if i < 2:  # 仅打印前两页的样本
-                            print(f"\n第 {start_page + i + 1} 页OCR结果样本（前100字符）:")
-                            print(page_text[:100] + "...")
+                        # if i < 2:  # 仅打印前两页的样本
+                        #     print(f"\n第 {start_page + i + 1} 页OCR结果样本（前100字符）:")
+                        #     print(page_text[:100] + "...")
 
                     except Exception as e:
                         logger.error(f"OCR处理第 {i + 1} 页时出错: {e}")

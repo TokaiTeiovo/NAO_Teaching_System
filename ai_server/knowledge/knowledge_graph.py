@@ -446,7 +446,6 @@ class KnowledgeGraph:
             # 使用同一个Python解释器运行提取脚本
             cmd = [
                 sys.executable,
-                "extract_knowledge_graph.py",
                 "--pdf_path", pdf_path,
                 "--output_path", output_path
             ]
