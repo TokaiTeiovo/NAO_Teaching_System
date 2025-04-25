@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from deepface import DeepFace
-from utils.logger import setup_logger
+from ai_server.utils.logger import setup_logger
 
 # 设置日志
 logger = setup_logger('face_emotion')
@@ -70,7 +70,7 @@ class FaceEmotionModel(nn.Module):
         return x
 
 
-class FaceEmotionAnalyzer:
+class FaceEmotionAnalyzer(object):  # Python 2.7使用经典风格的类定义
     """
     面部表情情感分析器
     """
@@ -90,7 +90,7 @@ class FaceEmotionAnalyzer:
         try:
             self.load_model()
         except Exception as e:
-            logger.warning(f"加载自定义面部情感模型失败，将使用DeepFace库: {e}")
+            logger.warning("加载自定义面部情感模型失败，将使用DeepFace库: %s" % e)
             self.use_custom_model = False
 
     def load_model(self):
@@ -110,7 +110,7 @@ class FaceEmotionAnalyzer:
                 logger.info("成功加载面部情感模型权重")
                 self.use_custom_model = True
             else:
-                logger.warning(f"模型文件不存在: {model_file}")
+                logger.warning("模型文件不存在: %s" % model_file)
                 self.use_custom_model = False
 
             # 移动模型到设备
@@ -119,7 +119,7 @@ class FaceEmotionAnalyzer:
                 self.model.eval()
 
         except Exception as e:
-            logger.error(f"加载面部情感模型时出错: {e}", exc_info=True)
+            logger.error("加载面部情感模型时出错: %s" % e)
             self.use_custom_model = False
 
     def preprocess_image(self, image):
@@ -147,127 +147,127 @@ class FaceEmotionAnalyzer:
             return image_tensor
 
         except Exception as e:
-            logger.error(f"预处理图像时出错: {e}", exc_info=True)
+            logger.error("预处理图像时出错: %s" % e)
             return None
 
-        def detect_faces(self, image):
-            """
-            检测图像中的人脸
-            """
-            try:
-                # 转换为灰度图
-                gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    def detect_faces(self, image):
+        """
+        检测图像中的人脸
+        """
+        try:
+            # 转换为灰度图
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-                # 使用Haar级联分类器检测人脸
-                face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-                faces = face_cascade.detectMultiScale(gray, 1.1, 4)
+            # 使用Haar级联分类器检测人脸
+            face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+            faces = face_cascade.detectMultiScale(gray, 1.1, 4)
 
-                # 提取人脸区域
-                face_regions = []
-                for (x, y, w, h) in faces:
-                    face = image[y:y + h, x:x + w]
-                    face_regions.append(face)
+            # 提取人脸区域
+            face_regions = []
+            for (x, y, w, h) in faces:
+                face = image[y:y + h, x:x + w]
+                face_regions.append(face)
 
-                return face_regions
+            return face_regions
 
-            except Exception as e:
-                logger.error(f"检测人脸时出错: {e}", exc_info=True)
-                return []
+        except Exception as e:
+            logger.error("检测人脸时出错: %s" % e)
+            return []
 
-        def analyze_custom(self, image):
-            """
-            使用自定义模型分析面部表情
-            """
-            try:
-                # 检测人脸
-                faces = self.detect_faces(image)
+    def analyze_custom(self, image):
+        """
+        使用自定义模型分析面部表情
+        """
+        try:
+            # 检测人脸
+            faces = self.detect_faces(image)
 
-                if not faces:
-                    return {"error": "未检测到人脸"}
+            if not faces:
+                return {"error": "未检测到人脸"}
 
-                # 获取最大的人脸（假设是主要人物）
-                main_face = max(faces, key=lambda face: face.shape[0] * face.shape[1])
+            # 获取最大的人脸（假设是主要人物）
+            main_face = max(faces, key=lambda face: face.shape[0] * face.shape[1])
 
-                # 预处理图像
-                face_tensor = self.preprocess_image(main_face)
+            # 预处理图像
+            face_tensor = self.preprocess_image(main_face)
 
-                if face_tensor is None:
-                    return {"error": "图像预处理失败"}
+            if face_tensor is None:
+                return {"error": "图像预处理失败"}
 
-                # 移动到设备
-                face_tensor = face_tensor.to(self.device)
+            # 移动到设备
+            face_tensor = face_tensor.to(self.device)
 
-                # 模型推理
-                with torch.no_grad():
-                    outputs = self.model(face_tensor)
-                    probs = F.softmax(outputs, dim=1).squeeze().cpu().numpy()
+            # 模型推理
+            with torch.no_grad():
+                outputs = self.model(face_tensor)
+                probs = F.softmax(outputs, dim=1).squeeze().cpu().numpy()
 
-                # 获取预测结果
-                emotion_idx = np.argmax(probs)
-                emotion = self.emotions[emotion_idx]
+            # 获取预测结果
+            emotion_idx = np.argmax(probs)
+            emotion = self.emotions[emotion_idx]
 
-                # 构建结果
-                result = {
-                    "emotion": emotion,
-                    "confidence": float(probs[emotion_idx]),
-                    "emotions": {self.emotions[i]: float(probs[i]) for i in range(len(self.emotions))}
-                }
+            # 构建结果
+            result = {
+                "emotion": emotion,
+                "confidence": float(probs[emotion_idx]),
+                "emotions": {self.emotions[i]: float(probs[i]) for i in range(len(self.emotions))}
+            }
 
-                return result
+            return result
 
-            except Exception as e:
-                logger.error(f"使用自定义模型分析面部表情时出错: {e}", exc_info=True)
-                return {"error": str(e)}
+        except Exception as e:
+            logger.error("使用自定义模型分析面部表情时出错: %s" % e)
+            return {"error": str(e)}
 
-        def analyze_deepface(self, image):
-            """
-            使用DeepFace库分析面部表情
-            """
-            try:
-                # 分析情感
-                result = DeepFace.analyze(image, actions=['emotion'], enforce_detection=False)
+    def analyze_deepface(self, image):
+        """
+        使用DeepFace库分析面部表情
+        """
+        try:
+            # 分析情感
+            result = DeepFace.analyze(image, actions=['emotion'], enforce_detection=False)
 
-                if isinstance(result, list):
-                    result = result[0]
+            if isinstance(result, list):
+                result = result[0]
 
-                # 获取情感结果
-                emotion = result['dominant_emotion']
-                emotions = result['emotion']
+            # 获取情感结果
+            emotion = result['dominant_emotion']
+            emotions = result['emotion']
 
-                # 映射英文情感到中文
-                emotion_map = {
-                    'angry': '愤怒',
-                    'disgust': '厌恶',
-                    'fear': '恐惧',
-                    'happy': '喜悦',
-                    'neutral': '中性',
-                    'sad': '悲伤',
-                    'surprise': '惊讶'
-                }
+            # 映射英文情感到中文
+            emotion_map = {
+                'angry': '愤怒',
+                'disgust': '厌恶',
+                'fear': '恐惧',
+                'happy': '喜悦',
+                'neutral': '中性',
+                'sad': '悲伤',
+                'surprise': '惊讶'
+            }
 
-                # 构建结果
-                mapped_result = {
-                    "emotion": emotion_map.get(emotion, emotion),
-                    "confidence": emotions[emotion] / 100.0,  # 转换为0-1范围
-                    "emotions": {emotion_map.get(k, k): v / 100.0 for k, v in emotions.items()}
-                }
+            # 构建结果
+            mapped_result = {
+                "emotion": emotion_map.get(emotion, emotion),
+                "confidence": emotions[emotion] / 100.0,  # 转换为0-1范围
+                "emotions": {emotion_map.get(k, k): v / 100.0 for k, v in emotions.items()}
+            }
 
-                return mapped_result
+            return mapped_result
 
-            except Exception as e:
-                logger.error(f"使用DeepFace分析面部表情时出错: {e}", exc_info=True)
-                return {"error": str(e)}
+        except Exception as e:
+            logger.error("使用DeepFace分析面部表情时出错: %s" % e)
+            return {"error": str(e)}
 
-        def analyze(self, image):
-            """
-            分析面部表情情感
-            """
-            # 检查图像类型
-            if isinstance(image, np.ndarray):
-                # 如果使用自定义模型且加载成功
-                if self.use_custom_model:
-                    return self.analyze_custom(image)
-                else:
-                    return self.analyze_deepface(image)
+    def analyze(self, image):
+        """
+        分析面部表情情感
+        """
+        # 检查图像类型
+        if isinstance(image, np.ndarray):
+            # 如果使用自定义模型且加载成功
+            if self.use_custom_model:
+                return self.analyze_custom(image)
             else:
-                return {"error": "无效的图像数据"}
+                return self.analyze_deepface(image)
+        else:
+            return {"error": "无效的图像数据"}

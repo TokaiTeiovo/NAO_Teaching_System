@@ -8,7 +8,7 @@ from ai_server.utils.logger import setup_logger
 logger = setup_logger('emotion_fusion')
 
 
-class EmotionFusion:
+class EmotionFusion(object):  # Python 2.7使用经典风格的类定义
     """
     多模态情感融合类
     """
@@ -60,8 +60,8 @@ class EmotionFusion:
                 # 动态调整权重
                 adjusted_weights = self._adjust_weights(audio_reliability, face_reliability)
 
-                logger.info(f"原始权重: 音频={self.weights['audio']}, 面部={self.weights['face']}")
-                logger.info(f"调整后权重: 音频={adjusted_weights['audio']}, 面部={adjusted_weights['face']}")
+                logger.info("原始权重: 音频=%s, 面部=%s" % (self.weights['audio'], self.weights['face']))
+                logger.info("调整后权重: 音频=%s, 面部=%s" % (adjusted_weights['audio'], adjusted_weights['face']))
 
                 # 提取情感概率
                 audio_probs = np.array([audio_emotion["emotions"].get(emotion, 0.0) for emotion in self.emotions])
@@ -96,7 +96,7 @@ class EmotionFusion:
             return result
 
         except Exception as e:
-            logger.error(f"融合情感时出错: {e}", exc_info=True)
+            logger.error("融合情感时出错: %s" % e)
             return {"error": str(e)}
 
     def _assess_reliability(self, emotion_data):
@@ -239,7 +239,7 @@ class EmotionFusion:
             return learning_states
 
         except Exception as e:
-            logger.error(f"估计学习状态时出错: {e}", exc_info=True)
+            logger.error("估计学习状态时出错: %s" % e)
             return {
                 "注意力": 0.5,
                 "参与度": 0.5,
