@@ -1,14 +1,15 @@
 # knowledge_extraction/pure_paddle_ocr_extractor.py
-import os
-import tempfile
-import re
 import logging
+import os
+import re
+import tempfile
+
 import numpy as np
-from tqdm import tqdm
-from pdf2image import convert_from_path
 import paddle
 from paddle.inference import Config
 from paddle.inference import create_predictor
+from pdf2image import convert_from_path
+from tqdm import tqdm
 
 # 创建日志记录器
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -49,7 +50,6 @@ class PurePaddleOCR:
     def _download_model(self, model_dir, lang):
         """下载指定语言的模型"""
         import requests
-        import zipfile
 
         model_files = ['model', 'params', 'vocab.txt']
         for file in model_files:
@@ -222,7 +222,7 @@ class PurePaddleOCRPDFExtractor:
             print(f"初始化PurePaddleOCR时出错: {e}")
             raise
 
-    def extract_text(self, start_page=0, end_page=None, dpi=300):
+    def extract_text(self, start_page=0, end_page=None, dpi=450):
         """
         提取PDF文本
 
@@ -240,7 +240,8 @@ class PurePaddleOCRPDFExtractor:
 
         try:
             # 转换PDF页面为图像
-            print("正在将PDF转换为图像，这可能需要一些时间...")
+            logger.info("正在将PDF转换为图像，这可能需要一些时间...")
+            #print("正在将PDF转换为图像，这可能需要一些时间...")
             pages = convert_from_path(
                 self.pdf_path,
                 dpi=dpi,
@@ -396,7 +397,7 @@ class PurePaddleOCRPDFExtractor:
 
         return chapters
 
-    def extract_sample(self, num_pages=30, dpi=300):
+    def extract_sample(self, num_pages=30, dpi=450):
         """
         提取PDF样本进行测试
 

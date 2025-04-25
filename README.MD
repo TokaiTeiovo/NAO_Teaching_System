@@ -20,6 +20,10 @@
 
 ### 1. 启动脚本
 
+#### `python ocr_llm_extraction.py --pdf "陈火旺+《程序设计语言编译原理》第三版.pdf" --output output/knowledge_graph.json --ocr_lang ch_sim,en --model "D:\biyesheji\Models\deepseek-llm-7b-chat" --use_gpu --batch_size 50`
+
+启动PDF转知识图谱
+
 #### `start_ai_server.py`
 
 AI服务器启动脚本，主要功能：

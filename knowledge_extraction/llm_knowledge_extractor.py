@@ -1,12 +1,12 @@
 # knowledge_extraction/llm_knowledge_extractor.py
-import os
 import json
+import logging
+import os
 import re
 
 import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
-import logging
 from tqdm import tqdm
+from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 
 # 创建日志记录器
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -424,3 +424,76 @@ class LLMKnowledgeExtractor:
 
         return relationships
 
+    def extract_knowledge_from_page(self, page_text, page_number):
+        """从单个页面的文本中提取知识点"""
+        try:
+            # 构建提示
+            prompt = f"""
+    你是一个知识图谱提取专家。请从下面的编译原理教材第{page_number}页文本中提取关键概念及其定义。
+    请按照以下JSON格式输出提取的知识点:
+    [
+      {{
+        "concept": "概念名称",
+        "definition": "概念定义",
+        "page": {page_number},
+        "importance": 4,
+        "difficulty": 3
+      }}
+    ]"""
+
+            # 由于模型的上下文长度限制，我们需要限制输入文本的长度
+            max_text_length = 4000  # 根据您的模型调整这个值
+            if len(page_text) > max_text_length:
+                page_text = page_text[:max_text_length]
+
+            # 添加文本到提示
+            full_prompt = prompt + "\n\n" + page_text
+
+            # 生成回答
+            response = self._generate_text(full_prompt)
+
+            # 提取JSON部分
+            try:
+                # 尝试匹配JSON数组
+                json_match = re.search(r'\[\s*\{.*?\}\s*\]', response, re.DOTALL)
+                if json_match:
+                    json_str = json_match.group(0)
+                else:
+                    # 尝试匹配任何可能的JSON结构
+                    json_str = re.search(r'\{.*\}', response, re.DOTALL)
+                    if json_str:
+                        json_str = "[" + json_str.group(0) + "]"
+                    else:
+                        # 没有找到JSON，返回空列表
+                        print(f"未能从响应中提取JSON结构: {response[:100]}...")
+                        return []
+
+                # 尝试解析JSON
+                try:
+                    knowledge_points = json.loads(json_str)
+                    return knowledge_points
+                except json.JSONDecodeError as e:
+                    print(f"JSON解析错误: {e}")
+                    print(f"尝试修复JSON...")
+
+                    # 尝试修复常见的JSON错误
+                    fixed_json = json_str.replace("'", '"')  # 替换单引号为双引号
+                    fixed_json = re.sub(r',\s*\]', ']', fixed_json)  # 移除数组末尾多余的逗号
+
+                    try:
+                        knowledge_points = json.loads(fixed_json)
+                        print("JSON修复成功!")
+                        return knowledge_points
+                    except:
+                        print("JSON修复失败，返回空列表")
+                        return []
+
+            except Exception as e:
+                logger.error(f"处理JSON时出错: {e}")
+                print(f"处理JSON时出错: {e}")
+                return []
+
+        except Exception as e:
+            logger.error(f"提取知识点时出错: {e}")
+            print(f"提取知识点时出错: {e}")
+            return []

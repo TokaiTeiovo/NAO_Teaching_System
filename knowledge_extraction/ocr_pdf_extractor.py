@@ -1,13 +1,13 @@
 # knowledge_extraction/ocr_pdf_extractor.py
+import logging
 import os
-import tempfile
 import re
-import time
-from pdf2image import convert_from_path
+import tempfile
+
 import easyocr
 import torch
+from pdf2image import convert_from_path
 from tqdm import tqdm
-import logging
 
 # 创建日志记录器
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -44,7 +44,7 @@ class OCRPDFExtractor:
         self._init_reader()
 
         logger.info(f"OCR PDF提取器初始化完成: {pdf_path}")
-        print(f"OCR PDF提取器初始化完成: {pdf_path}")
+        #print(f"OCR PDF提取器初始化完成: {pdf_path}")
 
     def _init_reader(self):
         """初始化EasyOCR reader"""
@@ -52,14 +52,14 @@ class OCRPDFExtractor:
             # 检查CUDA是否可用
             gpu = torch.cuda.is_available()
             logger.info(f"GPU加速: {'可用' if gpu else '不可用'}")
-            print(f"GPU加速: {'可用' if gpu else '不可用'}")
+            #print(f"GPU加速: {'可用' if gpu else '不可用'}")
 
             self.reader = easyocr.Reader(self.lang_list, gpu=gpu)
             logger.info(f"EasyOCR初始化成功，支持语言: {self.lang_list}")
-            print(f"EasyOCR初始化成功，支持语言: {self.lang_list}")
+            #print(f"EasyOCR初始化成功，支持语言: {self.lang_list}")
         except Exception as e:
             logger.error(f"EasyOCR初始化失败: {e}")
-            print(f"EasyOCR初始化失败: {e}")
+            #print(f"EasyOCR初始化失败: {e}")
             raise
 
     def extract_text(self, start_page=0, end_page=None, dpi=300):
@@ -80,7 +80,9 @@ class OCRPDFExtractor:
 
         try:
             # 转换PDF页面为图像
-            print("正在将PDF转换为图像，这可能需要一些时间...")
+
+            logger.info(f"正在将PDF转换为图像，这可能需要一些时间...")
+            #print("正在将PDF转换为图像，这可能需要一些时间...")
             pages = convert_from_path(
                 self.pdf_path,
                 dpi=dpi,
@@ -89,7 +91,7 @@ class OCRPDFExtractor:
             )
 
             logger.info(f"成功转换 {len(pages)} 页PDF为图像")
-            print(f"成功转换 {len(pages)} 页PDF为图像，开始OCR处理...")
+            #print(f"成功转换 {len(pages)} 页PDF为图像，开始OCR处理...")
 
             # 提取文本
             all_text = []
@@ -162,76 +164,74 @@ class OCRPDFExtractor:
 
         return text
 
-    def extract_chapters(self):
+    def extract_text_by_pages(self, start_page=0, end_page=None, dpi=450):
         """
-        尝试提取PDF的章节结构
-        """
-        if not self.text_content:
-            # 如果还没有提取文本，先提取前50页作为样本
-            self.extract_text(start_page=0, end_page=50)
-
-        if not self.text_content:
-            logger.warning("文本内容为空，无法提取章节")
-            return {}
-
-        # 使用正则表达式查找可能的章节标题
-        chapter_patterns = [
-            r'第\s*(\d+)\s*章\s+([^\n]+)',  # 第X章 标题
-            r'Chapter\s*(\d+)\s*[:：]?\s*([^\n]+)',  # Chapter X: 标题
-            r'(\d+)\s+([A-Z][A-Za-z\s]+)',  # 数字 标题（标题首字母大写）
-            r'第\s*(\d+)\s*节\s+([^\n]+)'  # 第X节 标题
-        ]
-
-        chapters = {}
-
-        for pattern in chapter_patterns:
-            matches = list(re.finditer(pattern, self.text_content))
-            if matches:
-                print(f"使用模式 '{pattern}' 找到 {len(matches)} 个章节")
-
-                for i, match in enumerate(matches):
-                    chapter_num = match.group(1)
-                    chapter_title = match.group(2).strip()
-                    start_pos = match.start()
-
-                    # 确定章节结束位置
-                    end_pos = len(self.text_content)
-                    if i < len(matches) - 1:
-                        end_pos = matches[i + 1].start()
-
-                    # 提取章节文本
-                    chapter_text = self.text_content[start_pos:end_pos]
-
-                    chapters[f"第{chapter_num}章 {chapter_title}"] = {
-                        "level": 1,
-                        "position": start_pos,
-                        "text": chapter_text
-                    }
-
-                self.chapters = chapters
-                return chapters
-
-        # 如果没有找到章节，返回整个文本作为一个章节
-        if not chapters:
-            logger.warning("未找到章节，创建全文章节")
-            print("未找到章节，创建全文章节")
-            chapters["全文"] = {
-                "level": 0,
-                "text": self.text_content
-            }
-            self.chapters = chapters
-
-        return chapters
-
-    def extract_sample(self, num_pages=30, dpi=300):
-        """
-        提取PDF样本进行测试
+        按页面提取PDF文本
 
         参数:
-            num_pages: 提取的页数
-            dpi: 图像分辨率
+            start_page: 起始页码，从0开始
+            end_page: 结束页码，如果不指定则处理到最后一页
+            dpi: 图像分辨率，越高越清晰但处理越慢
 
         返回:
-            提取的文本样本
+            包含每页文本的字典: {页码: 文本内容}
         """
-        return self.extract_text(start_page=0, end_page=num_pages, dpi=dpi)
+        logger.info(f"按页面提取PDF文本: {self.pdf_path}")
+        #print(f"按页面提取PDF文本: {self.pdf_path}")
+        logger.info(f"页码范围: {start_page + 1}-{end_page} 页, DPI: {dpi}")
+        #print(f"页码范围: {start_page + 1}-{end_page} 页, DPI: {dpi}")
+
+        page_texts = {}
+
+        try:
+            # 转换PDF页面为图像
+            logger.info("正在将PDF转换为图像，这可能需要一些时间...")
+            #print("正在将PDF转换为图像，这可能需要一些时间...")
+            pages = convert_from_path(
+                self.pdf_path,
+                dpi=dpi,
+                first_page=start_page + 1,  # pdf2image页码从1开始
+                last_page=end_page
+            )
+
+            logger.info(f"成功转换 {len(pages)} 页PDF为图像")
+            #print(f"成功转换 {len(pages)} 页PDF为图像，开始OCR处理...")
+
+            # 使用临时目录保存图像
+            with tempfile.TemporaryDirectory() as temp_dir:
+                # 使用用户有权限的目录作为临时目录
+                temp_dir = os.path.join(os.getcwd(), "temp_ocr")
+                os.makedirs(temp_dir, exist_ok=True)
+
+                # 使用tqdm创建进度条
+                for i, page in enumerate(tqdm(pages, desc="OCR处理进度")):
+                    # 保存图像
+                    image_path = os.path.join(temp_dir, f"page_{i}.png")
+                    page.save(image_path, "PNG")
+
+                    # OCR处理
+                    try:
+                        result = self.reader.readtext(image_path)
+                        page_text = "\n".join([text[1] for text in result])
+
+                        # 清理文本（合并断行等）
+                        page_text = self._clean_ocr_text(page_text)
+
+                        # 将页面文本保存到字典
+                        actual_page_num = start_page + i  # 实际页码
+                        page_texts[actual_page_num] = page_text
+
+                        # 删除临时图像文件
+                        os.remove(image_path)
+
+                    except Exception as e:
+                        logger.error(f"OCR处理第 {start_page + i + 1} 页时出错: {e}")
+                        print(f"处理第 {start_page + i + 1} 页时出错: {e}")
+                        page_texts[start_page + i] = ""  # 保存空字符串
+
+            return page_texts
+
+        except Exception as e:
+            logger.error(f"按页面提取PDF文本时出错: {e}")
+            print(f"按页面提取PDF文本时出错: {e}")
+            return {}
