@@ -1,6 +1,5 @@
 ### 步骤2: 创建调用脚本
 
-```python
 # knowledge_extraction/extract_by_llm.py
 import argparse
 import logging
