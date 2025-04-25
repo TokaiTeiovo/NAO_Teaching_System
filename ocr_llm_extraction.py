@@ -45,33 +45,29 @@ def main():
             if doc:
                 doc.close()
 
-        # 视情况分批处理以避免内存问题
-        if total_pages > 100:
-            # 使用批处理方式
-            print("页数较多，将分批处理...")
-            all_text = []
-            batch_size = 50
 
-            for start_page in range(0, total_pages, batch_size):
-                end_page = min(start_page + batch_size, total_pages)
-                print(f"处理页面 {start_page + 1}-{end_page}...")
-                batch_text = ocr_extractor.extract_text(start_page=start_page, end_page=end_page)
-                all_text.append(batch_text)
+        # 使用批处理方式
+        print("页数较多，将分批处理...")
+        all_text = []
+        batch_size = 50
 
-                # 清理内存
-                print("清理批次处理的内存...")
-                import gc
-                import torch
-                gc.collect()
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
+        for start_page in range(0, total_pages, batch_size):
+            end_page = min(start_page + batch_size, total_pages)
+            print(f"处理页面 {start_page + 1}-{end_page}...")
+            batch_text = ocr_extractor.extract_text(start_page=start_page, end_page=end_page)
+            all_text.append(batch_text)
 
-            # 合并所有批次的文本
-            text = "\n\n".join(all_text)
+            # 清理内存
+            print("清理批次处理的内存...")
+            import gc
+            import torch
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
-        else:
-            # 页数较少时一次性处理
-            text = ocr_extractor.extract_text()
+        # 合并所有批次的文本
+        text = "\n\n".join(all_text)
+
 
     # 修改提取方法，添加进度条
     if args.sample_pages:
