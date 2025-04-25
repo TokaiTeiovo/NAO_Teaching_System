@@ -12,6 +12,8 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 logger = logging.getLogger('extract_by_llm')
 
 
+# knowledge_extraction/extract_by_llm.py 中与OCR相关的代码块
+
 def main():
     """主函数"""
     parser = argparse.ArgumentParser(description="使用本地大模型从PDF提取知识图谱")
@@ -20,6 +22,7 @@ def main():
     parser.add_argument("--output", default="output/llm_知识图谱.json", help="输出JSON文件路径")
     parser.add_argument("--model", default=None, help="模型路径，不指定则使用默认路径")
     parser.add_argument("--sample_pages", type=int, default=50, help="处理的页数，默认50页")
+    parser.add_argument("--ocr_lang", default="ch_sim,en", help="OCR语言设置，使用逗号分隔多语言")
 
     args = parser.parse_args()
 
@@ -28,39 +31,57 @@ def main():
     print(f"PDF文件: {args.pdf}")
     print(f"输出路径: {args.output}")
     print(f"处理页数: {args.sample_pages}")
+    print(f"OCR语言: {args.ocr_lang}")
 
     try:
         # 1. 提取PDF文本
         print("\n1. 提取PDF文本")
         print("-" * 50)
 
-        extractor = EnhancedPDFExtractor(args.pdf)
+        # 如果需要使用OCR，则可以使用以下代码替代EnhancedPDFExtractor
+        if args.use_ocr:
+            from ocr_pdf_extractor import OCRPDFExtractor
+            extractor = OCRPDFExtractor(args.pdf, lang=args.ocr_lang)
 
-        # 如果有指定页数，只处理指定页数
-        if args.sample_pages:
-            # 获取前n页内容
-            pages_text = []
-            for i in range(min(args.sample_pages, len(extractor.mupdf_doc))):
-                try:
-                    page_text = extractor.mupdf_doc[i].get_text()
-                    pages_text.append(page_text)
-                    if i < 3:  # 只打印前3页的样本
-                        print(f"第{i + 1}页样本（前100字符）: {page_text[:100]}")
-                except Exception as e:
-                    print(f"提取第{i + 1}页时出错: {e}")
+            if args.sample_pages:
+                text = extractor.extract_sample(num_pages=args.sample_pages)
+            else:
+                text = extractor.extract_text()
 
-            text = "\n\n".join(pages_text)
-            print(f"提取了 {len(pages_text)} 页，总计 {len(text)} 字符")
-
-            # 创建单章节
-            chapters = {"编译原理样本": {"text": text, "level": 0}}
-        else:
-            # 提取所有章节
             chapters = extractor.extract_chapters()
             if not chapters:
-                # 如果没有提取到章节，尝试提取全文
-                text = extractor.extract_text()
                 chapters = {"全文": {"text": text, "level": 0}}
+
+        else:
+            # 原有的EnhancedPDFExtractor代码
+
+            extractor = EnhancedPDFExtractor(args.pdf)
+
+            # 如果有指定页数，只处理指定页数
+            if args.sample_pages:
+                # 获取前n页内容
+                pages_text = []
+                for i in range(min(args.sample_pages, len(extractor.mupdf_doc))):
+                    try:
+                        page_text = extractor.mupdf_doc[i].get_text()
+                        pages_text.append(page_text)
+                        if i < 3:  # 只打印前3页的样本
+                            print(f"第{i + 1}页样本（前100字符）: {page_text[:100]}")
+                    except Exception as e:
+                        print(f"提取第{i + 1}页时出错: {e}")
+
+                text = "\n\n".join(pages_text)
+                print(f"提取了 {len(pages_text)} 页，总计 {len(text)} 字符")
+
+                # 创建单章节
+                chapters = {"编译原理样本": {"text": text, "level": 0}}
+            else:
+                # 提取所有章节
+                chapters = extractor.extract_chapters()
+                if not chapters:
+                    # 如果没有提取到章节，尝试提取全文
+                    text = extractor.extract_text()
+                    chapters = {"全文": {"text": text, "level": 0}}
 
         # 2. 使用大模型提取知识图谱
         print("\n2. 使用大模型提取知识图谱")

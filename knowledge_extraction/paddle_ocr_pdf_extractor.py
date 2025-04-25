@@ -1,66 +1,46 @@
-# knowledge_extraction/ocr_pdf_extractor.py
+# knowledge_extraction/paddle_ocr_pdf_extractor.py
 import os
 import tempfile
 import re
-import time
-from pdf2image import convert_from_path
-import easyocr
-import torch
-from tqdm import tqdm
 import logging
+from tqdm import tqdm
+from pdf2image import convert_from_path
+from paddleocr import PaddleOCR
 
 # 创建日志记录器
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger('ocr_pdf_extractor')
+logger = logging.getLogger('paddle_ocr_pdf_extractor')
 
 
-class OCRPDFExtractor:
+class PaddleOCRPDFExtractor:
     """
-    使用OCR技术提取PDF文本
+    使用PaddleOCR技术提取PDF文本
     """
 
-    def __init__(self, pdf_path, lang='ch_sim,eng'):
+    def __init__(self, pdf_path, lang='ch', use_gpu=False):
         """
-        初始化OCR PDF提取器
+        初始化PaddleOCR PDF提取器
 
         参数:
             pdf_path: PDF文件路径
-            lang: OCR语言，默认为中文简体+英文，使用逗号分隔
+            lang: OCR语言，默认为中文(ch)，可选：ch/en/chinese_cht(繁体)/japanese/korean等
+            use_gpu: 是否使用GPU加速，默认为False
         """
         self.pdf_path = pdf_path
-        # easyocr使用的语言代码列表
-        self.lang_list = [lang_code.strip() for lang_code in lang.split(',')]
-        self.lang_mapping = {
-            'chi_sim': 'ch_sim',
-            'eng': 'en'
-        }
-        self.lang_list = [self.lang_mapping.get(lang_code, lang_code) for lang_code in self.lang_list]
-
+        self.lang = lang
+        self.use_gpu = use_gpu
         self.text_content = ""
         self.chapters = {}
 
-        # 初始化EasyOCR reader
-        self.reader = None
-        self._init_reader()
+        # 初始化PaddleOCR
+        self.ocr = PaddleOCR(
+            use_angle_cls=True,  # 使用方向分类器
+            lang=self.lang,  # 语言
+            use_gpu=self.use_gpu  # 是否使用GPU
+        )
 
-        logger.info(f"OCR PDF提取器初始化完成: {pdf_path}")
-        print(f"OCR PDF提取器初始化完成: {pdf_path}")
-
-    def _init_reader(self):
-        """初始化EasyOCR reader"""
-        try:
-            # 检查CUDA是否可用
-            gpu = torch.cuda.is_available()
-            logger.info(f"GPU加速: {'可用' if gpu else '不可用'}")
-            print(f"GPU加速: {'可用' if gpu else '不可用'}")
-
-            self.reader = easyocr.Reader(self.lang_list, gpu=gpu)
-            logger.info(f"EasyOCR初始化成功，支持语言: {self.lang_list}")
-            print(f"EasyOCR初始化成功，支持语言: {self.lang_list}")
-        except Exception as e:
-            logger.error(f"EasyOCR初始化失败: {e}")
-            print(f"EasyOCR初始化失败: {e}")
-            raise
+        logger.info(f"PaddleOCR初始化完成，语言：{lang}，GPU：{'是' if use_gpu else '否'}")
+        print(f"PaddleOCR初始化完成，语言：{lang}，GPU：{'是' if use_gpu else '否'}")
 
     def extract_text(self, start_page=0, end_page=None, dpi=300):
         """
@@ -74,8 +54,8 @@ class OCRPDFExtractor:
         返回:
             提取的文本内容
         """
-        logger.info(f"使用OCR提取PDF文本: {self.pdf_path}")
-        print(f"使用OCR提取PDF文本: {self.pdf_path}")
+        logger.info(f"使用PaddleOCR提取PDF文本: {self.pdf_path}")
+        print(f"使用PaddleOCR提取PDF文本: {self.pdf_path}")
         print(f"页码范围: {start_page}-{end_page if end_page else '结束'}, DPI: {dpi}")
 
         try:
@@ -96,10 +76,6 @@ class OCRPDFExtractor:
 
             # 使用临时目录保存图像
             with tempfile.TemporaryDirectory() as temp_dir:
-                # 使用用户有权限的目录作为临时目录
-                temp_dir = os.path.join(os.getcwd(), "temp_ocr")
-                os.makedirs(temp_dir, exist_ok=True)
-
                 # 使用tqdm创建进度条
                 for i, page in enumerate(tqdm(pages, desc="OCR处理进度")):
                     # 保存图像
@@ -108,12 +84,18 @@ class OCRPDFExtractor:
 
                     # OCR处理
                     try:
-                        result = self.reader.readtext(image_path)
-                        page_text = "\n".join([text[1] for text in result])
-                        all_text.append(page_text)
+                        # 使用PaddleOCR执行识别
+                        result = self.ocr.ocr(image_path, cls=True)
 
-                        # 删除临时图像文件
-                        os.remove(image_path)
+                        # 提取识别的文本
+                        page_text = ""
+                        if result and result[0]:  # 确保有结果
+                            for line in result[0]:
+                                if len(line) >= 2:  # 确保结果格式正确
+                                    # line[1][0]是识别的文本，line[1][1]是置信度
+                                    page_text += line[1][0] + "\n"
+
+                        all_text.append(page_text)
 
                         # 打印前几页的OCR结果样本
                         if i < 2:  # 仅打印前两页的样本
@@ -136,8 +118,8 @@ class OCRPDFExtractor:
             return self.text_content
 
         except Exception as e:
-            logger.error(f"OCR提取文本时出错: {e}")
-            print(f"OCR提取文本时出错: {e}")
+            logger.error(f"PaddleOCR提取文本时出错: {e}")
+            print(f"PaddleOCR提取文本时出错: {e}")
             return ""
 
     def _clean_ocr_text(self, text):
@@ -151,10 +133,12 @@ class OCRPDFExtractor:
         text = re.sub(r'\n{3,}', '\n\n', text)
 
         # 处理常见的OCR错误
-        # 比如将"l"误识别为"1"等
+        # 例如中文标点符号修正等
         ocr_fixes = {
-            'l\.': 'i.',  # 修复常见的小写L被识别为i的问题
-            'O': '0',  # 字母O被识别为数字0
+            '．': '.',  # 全角点号修正
+            '，': ',',  # 全角逗号修正
+            '：': ':',  # 全角冒号修正
+            '；': ';',  # 全角分号修正
         }
 
         for error, fix in ocr_fixes.items():

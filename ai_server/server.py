@@ -3,333 +3,464 @@
 
 import os
 import json
+import time
 import asyncio
-import logging
-import numpy as np
 import websockets
-from base64 import b64decode
-
-# 导入各模块
-from nlp.llm_model import LLMModel
-from nlp.conversation import ConversationManager
-from emotion.audio_emotion import AudioEmotionAnalyzer
-from emotion.face_emotion import FaceEmotionAnalyzer
-from emotion.fusion import EmotionFusion
-from knowledge.knowledge_graph import KnowledgeGraph
-from knowledge.recommender import KnowledgeRecommender
-from utils.config import Config
-from utils.logger import setup_logger
+import numpy as np
+import cv2
+from base64 import b64encode, b64decode
+import logging
+import threading
+import queue
 
 # 设置日志
-logger = setup_logger('server')
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger('ai_websocket_server')
 
 
-class AIServer:
+class AIWebSocketServer:
     """
-    AI服务器主类
+    AI服务器WebSocket服务端
+    实现与NAO机器人的实时通信，处理多模态数据
     """
 
-    def __init__(self, config_path="config.json"):
-        # 加载配置
-        self.config = Config(config_path)
-
-        # 初始化各模块
-        self.init_modules()
-
-        # WebSocket服务器
-        self.clients = {}
-
-    def init_modules(self):
+    def __init__(self, host="localhost", port=8765):
         """
-        初始化各功能模块
+        初始化WebSocket服务器
+
+        参数:
+            host: 服务器主机地址
+            port: 服务器端口
         """
-        logger.info("初始化功能模块...")
+        self.host = host
+        self.port = port
+        self.clients = {}  # 客户端连接字典
+        self.server = None  # WebSocket服务器实例
 
-        # 加载大语言模型
-        self.llm = LLMModel(self.config)
+        # 消息处理器映射
+        self.message_handlers = {
+            "audio": self.handle_audio,
+            "image": self.handle_image,
+            "text": self.handle_text,
+            "command": self.handle_command
+        }
 
-        # 对话管理
-        self.conversation = ConversationManager(self.llm)
+        # 创建任务队列及处理线程
+        self.task_queue = queue.Queue()
+        self.processing_threads = []
+        self.running = True
 
-        # 情感分析
-        self.audio_emotion = AudioEmotionAnalyzer(self.config)
-        self.face_emotion = FaceEmotionAnalyzer(self.config)
-        self.emotion_fusion = EmotionFusion(self.config)
+        # 启动处理线程池
+        self._start_processing_threads(num_threads=3)
 
-        # 知识推荐
-        self.knowledge_graph = KnowledgeGraph(self.config)
-        self.recommender = KnowledgeRecommender(self.knowledge_graph, self.config)
+    def _start_processing_threads(self, num_threads=3):
+        """启动多个处理线程来处理任务队列"""
+        for i in range(num_threads):
+            thread = threading.Thread(target=self._process_task_loop)
+            thread.daemon = True
+            thread.start()
+            self.processing_threads.append(thread)
+            logger.info(f"启动处理线程 {i + 1}")
 
-        logger.info("所有模块初始化完成")
+    def _process_task_loop(self):
+        """任务处理循环"""
+        while self.running:
+            try:
+                task = self.task_queue.get(timeout=1.0)
+                if task is None:  # 停止信号
+                    break
+
+                try:
+                    task_type, client_id, msg_id, data = task
+
+                    # 根据任务类型处理
+                    if task_type == "audio":
+                        result = self._process_audio(data)
+                    elif task_type == "image":
+                        result = self._process_image(data)
+                    elif task_type == "text":
+                        result = self._process_text(data)
+                    elif task_type == "command":
+                        result = self._process_command(data)
+                    else:
+                        result = {"error": f"未知任务类型: {task_type}"}
+
+                    # 将结果放入响应队列
+                    asyncio.run_coroutine_threadsafe(
+                        self.send_response(client_id, msg_id, f"{task_type}_result", result),
+                        asyncio.get_event_loop()
+                    )
+
+                except Exception as e:
+                    logger.error(f"处理任务时出错: {str(e)}", exc_info=True)
+                    # 发送错误响应
+                    asyncio.run_coroutine_threadsafe(
+                        self.send_error(client_id, msg_id, "处理失败", str(e)),
+                        asyncio.get_event_loop()
+                    )
+
+                finally:
+                    self.task_queue.task_done()
+
+            except queue.Empty:
+                continue
+            except Exception as e:
+                logger.error(f"任务处理线程错误: {str(e)}", exc_info=True)
+
+    def _process_audio(self, data):
+        """
+        处理音频数据
+
+        参数:
+            data: 音频数据及相关信息
+
+        返回:
+            处理结果
+        """
+        # 提取音频信息
+        audio_format = data.get("format", "wav")
+        sample_rate = data.get("sample_rate", 16000)
+        encoded_data = data.get("data", "")
+
+        try:
+            # 解码音频数据
+            audio_data = b64decode(encoded_data)
+
+            # TODO: 这里添加实际的音频处理逻辑
+            # 例如: 语音识别、情感分析等
+
+            # 模拟处理延迟
+            time.sleep(0.5)
+
+            # 返回处理结果
+            return {
+                "text": "这是识别的文本",  # 语音识别结果
+                "emotion": {
+                    "type": "neutral",  # 情感类型
+                    "confidence": 0.85  # 置信度
+                }
+            }
+
+        except Exception as e:
+            logger.error(f"处理音频时出错: {str(e)}", exc_info=True)
+            return {"error": f"处理音频时出错: {str(e)}"}
+
+    def _process_image(self, data):
+        """
+        处理图像数据
+
+        参数:
+            data: 图像数据及相关信息
+
+        返回:
+            处理结果
+        """
+        # 提取图像信息
+        image_format = data.get("format", "jpeg")
+        shape = data.get("shape", None)
+        encoded_data = data.get("data", "")
+
+        try:
+            # 解码图像数据
+            image_bytes = b64decode(encoded_data)
+
+            # 根据格式解码图像
+            if image_format == "jpeg":
+                # 从JPEG字节数据解码图像
+                np_arr = np.frombuffer(image_bytes, np.uint8)
+                image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+            else:
+                # 如果是其他格式，直接使用shape信息重构数组
+                if not shape:
+                    return {"error": "缺少图像形状信息"}
+                image = np.frombuffer(image_bytes, dtype=np.uint8).reshape(shape)
+
+            # TODO: 这里添加实际的图像处理逻辑
+            # 例如: 人脸检测、表情识别等
+
+            # 模拟处理延迟
+            time.sleep(0.5)
+
+            # 返回处理结果
+            return {
+                "face_detected": True,
+                "emotion": {
+                    "type": "happy",  # 情感类型
+                    "confidence": 0.92  # 置信度
+                },
+                "attention": 0.85  # 注意力评分
+            }
+
+        except Exception as e:
+            logger.error(f"处理图像时出错: {str(e)}", exc_info=True)
+            return {"error": f"处理图像时出错: {str(e)}"}
+
+    def _process_text(self, data):
+        """
+        处理文本消息
+
+        参数:
+            data: 文本内容及上下文
+
+        返回:
+            处理结果
+        """
+        # 提取文本信息
+        text = data.get("text", "")
+        context = data.get("context", {})
+
+        try:
+            # TODO: 这里添加实际的文本处理逻辑
+            # 例如: 自然语言理解、对话管理等
+
+            # 模拟对话处理延迟
+            time.sleep(0.3)
+
+            # 简单的回复生成
+            if "你好" in text or "hello" in text.lower():
+                response = "你好！我是NAO机器人助教，有什么可以帮助你的吗？"
+            elif "再见" in text or "goodbye" in text.lower():
+                response = "再见！如果有问题随时来找我。"
+            else:
+                response = f"我收到了你的消息: \"{text}\"。请问有什么我可以帮助你的？"
+
+            # 添加动作建议
+            actions = ["greeting"] if "你好" in text else []
+
+            return {
+                "text": response,
+                "actions": actions
+            }
+
+        except Exception as e:
+            logger.error(f"处理文本时出错: {str(e)}", exc_info=True)
+            return {"error": f"处理文本时出错: {str(e)}"}
+
+    def _process_command(self, data):
+        """
+        处理命令
+
+        参数:
+            data: 命令及参数
+
+        返回:
+            处理结果
+        """
+        # 提取命令信息
+        command = data.get("command", "")
+        params = data.get("params", {})
+
+        try:
+            # 处理不同类型的命令
+            if command == "init_session":
+                # 初始化会话
+                session_id = f"session_{int(time.time())}"
+                return {"session_id": session_id}
+
+            elif command == "end_session":
+                # 结束会话
+                session_id = params.get("session_id", "")
+                return {"success": True, "message": f"会话 {session_id} 已结束"}
+
+            elif command == "query_knowledge":
+                # 查询知识点
+                concept = params.get("concept", "")
+                # TODO: 实际的知识图谱查询
+                return {
+                    "concept": concept,
+                    "definition": f"{concept}的定义...",
+                    "related_concepts": ["相关概念1", "相关概念2"]
+                }
+
+            elif command == "recommend_knowledge":
+                # 推荐知识点
+                current_concept = params.get("concept", "")
+                # TODO: 实际的知识推荐逻辑
+                return {
+                    "recommendations": [
+                        {"name": "推荐概念1", "relevance": 0.95},
+                        {"name": "推荐概念2", "relevance": 0.85}
+                    ]
+                }
+
+            else:
+                return {"error": f"未知命令: {command}"}
+
+        except Exception as e:
+            logger.error(f"处理命令时出错: {str(e)}", exc_info=True)
+            return {"error": f"处理命令时出错: {str(e)}"}
 
     async def handle_client(self, websocket, path):
         """
-        处理WebSocket客户端连接
+        处理客户端连接
+
+        参数:
+            websocket: WebSocket连接
+            path: 请求路径
         """
+        # 生成客户端ID
         client_id = id(websocket)
         self.clients[client_id] = websocket
+
         logger.info(f"新客户端连接: {client_id}")
 
         try:
-            async for message in websocket:
-                await self.process_message(websocket, message)
+            # 发送欢迎消息
+            await self.send_response(
+                client_id,
+                "welcome",
+                "server_info",
+                {"message": "欢迎连接到AI服务器", "server_time": time.time()}
+            )
 
-        except websockets.exceptions.ConnectionClosed:
-            logger.info(f"客户端断开连接: {client_id}")
+            # 接收和处理消息
+            async for message in websocket:
+                await self.process_message(client_id, message)
+
+        except websockets.exceptions.ConnectionClosedError as e:
+            logger.info(f"客户端连接已关闭: {client_id}, 原因: {str(e)}")
+        except Exception as e:
+            logger.error(f"处理客户端时出错: {str(e)}", exc_info=True)
         finally:
+            # 移除客户端
             if client_id in self.clients:
                 del self.clients[client_id]
+            logger.info(f"客户端断开连接: {client_id}")
 
-    async def process_message(self, websocket, message):
+    async def process_message(self, client_id, message):
         """
-        处理收到的消息
-        """
+        处理接收到的消息
 
+        参数:
+            client_id: 客户端ID
+            message: 消息内容
+        """
         try:
+            # 解析消息
             data = json.loads(message)
             msg_type = data.get("type", "unknown")
             msg_id = data.get("id", "")
             content = data.get("data", {})
 
-            logger.info(f"收到消息: {msg_type}, ID: {msg_id}")
+            logger.info(f"接收消息: 客户端={client_id}, 类型={msg_type}, ID={msg_id}")
 
-            # 根据消息类型分发处理
-            if msg_type == "audio":
-                await self.handle_audio(websocket, msg_id, content)
-            elif msg_type == "image":
-                await self.handle_image(websocket, msg_id, content)
-            elif msg_type == "text":
-                await self.handle_text(websocket, msg_id, content)
-            elif msg_type == "command":
-                await self.handle_command(websocket, msg_id, content)
-            elif msg_type == "import_pdf":
-                await self.handle_import_pdf(websocket, msg_id, content)
+            # 检查消息类型是否支持
+            if msg_type in self.message_handlers:
+                # 添加到任务队列
+                self.task_queue.put((msg_type, client_id, msg_id, content))
             else:
-                logger.warning(f"未知消息类型: {msg_type}")
-
-        except Exception as e:
-            logger.error(f"处理消息时出错: {e}", exc_info=True)
-            await self.send_error(websocket, "处理消息时出错", str(e))
-
-    async def handle_audio(self, websocket, msg_id, content):
-        """
-        处理音频数据
-        """
-        try:
-            # 解码音频数据
-            audio_format = content.get("format", "wav")
-            audio_data = b64decode(content.get("data", ""))
-
-            # 分析音频
-            if audio_format == "wav":
-                # 语音识别
-                text = await self.speech_to_text(audio_data)
-
-                # 音频情感分析
-                emotion = self.audio_emotion.analyze(audio_data)
-
-                # 发送结果
-                await self.send_response(websocket, msg_id, "audio_result", {
-                    "text": text,
-                    "emotion": emotion
-                })
-
-        except Exception as e:
-            logger.error(f"处理音频时出错: {e}", exc_info=True)
-            await self.send_error(websocket, msg_id, "处理音频时出错", str(e))
-
-    async def speech_to_text(self, audio_data):
-        """
-        将语音转换为文本
-        """
-        logger.info("处理语音识别...")
-        # 这里应该调用语音识别API或本地模型
-        # 简化版本中，我们假设已经得到了文本结果
-        text = "这里应该是语音识别的结果"
-        return text
-
-    async def handle_image(self, websocket, msg_id, content):
-        """
-        处理图像数据
-        """
-        try:
-            # 解码图像数据
-            image_format = content.get("format", "numpy")
-            image_data_base64 = content.get("data", "")
-            image_data = b64decode(image_data_base64)
-
-            # 如果是numpy格式，还原数组
-            if image_format == "numpy":
-                shape = content.get("shape")
-                dtype = content.get("dtype")
-                image_array = np.frombuffer(image_data, dtype=dtype).reshape(shape)
-
-                # 分析表情
-                emotion = await self.analyze_facial_emotion(image_array)
-
-                # 发送分析结果
-                await self.send_response(websocket, msg_id, "emotion_result", {
-                    "facial_emotion": emotion
-                })
-
-        except Exception as e:
-            logger.error(f"处理图像时出错: {e}", exc_info=True)
-            await self.send_error(websocket, msg_id, "处理图像时出错", str(e))
-
-    async def analyze_facial_emotion(self, image_array):
-        """
-        分析面部表情情绪
-        """
-        logger.info("分析面部表情...")
-        emotion = self.face_emotion.analyze(image_array)
-        return emotion
-
-    async def handle_text(self, websocket, msg_id, content):
-        """
-        处理文本消息
-        """
-        try:
-            # 获取文本内容
-            text = content.get("text", "")
-            context = content.get("context", {})
-            logger.info(f"处理文本: {text}")
-
-            # 使用对话管理器处理
-            response = self.conversation.process(text, context)
-
-            # 发送响应
-            await self.send_response(websocket, msg_id, "text_response", {
-                "text": response,
-                "actions": []  # 这里可以添加机器人应该执行的动作
-            })
-
-        except Exception as e:
-            logger.error(f"处理文本时出错: {e}", exc_info=True)
-            await self.send_error(websocket, msg_id, "处理文本时出错", str(e))
-
-    async def handle_command(self, websocket, msg_id, content):
-        """
-        处理命令消息
-        """
-        try:
-            # 获取命令和参数
-            command = content.get("command", "")
-            params = content.get("params", {})
-            logger.info(f"处理命令: {command}, 参数: {params}")
-
-            # 根据命令类型处理
-            if command == "init_session":
-                # 初始化会话
-                session_id = self.conversation.create_session()
-                await self.send_response(websocket, msg_id, "command_result", {
-                    "session_id": session_id
-                })
-            elif command == "end_session":
-                # 结束会话
-                session_id = params.get("session_id")
-                self.conversation.end_session(session_id)
-                await self.send_response(websocket, msg_id, "command_result", {
-                    "success": True
-                })
-            elif command == "query_knowledge":
-                # 查询知识图谱
-                concept = params.get("concept", "")
-                result = self.knowledge_graph.get_concept(concept)
-                await self.send_response(websocket, msg_id, "command_result", {
-                    "result": result
-                })
-            elif command == "recommend_knowledge":
-                # 推荐知识点
-                current_concept = params.get("concept", "")
-                knowledge_state = params.get("knowledge_state", {})
-                emotion_state = params.get("emotion_state", None)
-
-                recommendations = self.recommender.recommend_related_concepts(
-                    current_concept, knowledge_state, emotion_state
+                # 返回错误响应
+                await self.send_error(
+                    client_id,
+                    msg_id,
+                    "不支持的消息类型",
+                    f"不支持的消息类型: {msg_type}"
                 )
 
-                await self.send_response(websocket, msg_id, "command_result", {
-                    "recommendations": recommendations
-                })
-            else:
-                logger.warning(f"未知命令: {command}")
-                await self.send_error(websocket, msg_id, "未知命令", f"不支持的命令: {command}")
+        except json.JSONDecodeError:
+            logger.error(f"JSON解析错误: {message[:100]}")
+            await self.send_error(client_id, "", "无效消息", "无法解析JSON消息")
 
         except Exception as e:
-            logger.error(f"处理命令时出错: {e}", exc_info=True)
-            await self.send_error(websocket, msg_id, "处理命令时出错", str(e))
+            logger.error(f"处理消息时出错: {str(e)}", exc_info=True)
+            await self.send_error(client_id, "", "处理错误", str(e))
 
-    async def handle_import_pdf(self, websocket, msg_id, content):
+    async def handle_audio(self, client_id, msg_id, data):
         """
-        处理PDF导入请求
+        处理音频消息
+
+        参数:
+            client_id: 客户端ID
+            msg_id: 消息ID
+            data: 消息数据
         """
-        try:
-            # 获取PDF文件路径
-            pdf_path = content.get("pdf_path", "")
+        # 将任务添加到处理队列
+        self.task_queue.put(("audio", client_id, msg_id, data))
 
-            # 验证文件是否存在
-            if not os.path.exists(pdf_path):
-                await self.send_error(websocket, msg_id, "文件不存在", f"PDF文件不存在: {pdf_path}")
-                return
-
-            # 验证文件是否为PDF
-            if not pdf_path.lower().endswith('.pdf'):
-                await self.send_error(websocket, msg_id, "文件格式错误", "文件必须是PDF格式")
-                return
-
-            # 发送开始导入的消息
-            await self.send_response(websocket, msg_id, "import_progress", {
-                "status": "started",
-                "message": f"开始从 {pdf_path} 导入知识点"
-            })
-
-            # 在后台线程中处理导入，避免阻塞主线程
-            import threading
-
-            def import_task():
-                try:
-                    # 导入知识点
-                    nodes_count, relations_count = self.knowledge_graph.import_from_pdf(pdf_path)
-
-                    # 发送完成消息
-                    asyncio.run(self.send_response(websocket, msg_id, "import_result", {
-                        "status": "completed",
-                        "nodes_count": nodes_count,
-                        "relations_count": relations_count,
-                        "message": f"成功导入 {nodes_count} 个知识点和 {relations_count} 个关系"
-                    }))
-
-                except Exception as e:
-                    logger.error(f"导入PDF时出错: {e}", exc_info=True)
-
-                    # 发送错误消息
-                    asyncio.run(self.send_error(websocket, msg_id, "导入失败", str(e)))
-
-            # 启动导入线程
-            thread = threading.Thread(target=import_task)
-            thread.daemon = True
-            thread.start()
-
-        except Exception as e:
-            logger.error(f"处理PDF导入请求时出错: {e}", exc_info=True)
-            await self.send_error(websocket, msg_id, "处理请求时出错", str(e))
-
-    async def send_response(self, websocket, msg_id, response_type, data):
+    async def handle_image(self, client_id, msg_id, data):
         """
-        发送响应
+        处理图像消息
+
+        参数:
+            client_id: 客户端ID
+            msg_id: 消息ID
+            data: 消息数据
         """
+        # 将任务添加到处理队列
+        self.task_queue.put(("image", client_id, msg_id, data))
+
+    async def handle_text(self, client_id, msg_id, data):
+        """
+        处理文本消息
+
+        参数:
+            client_id: 客户端ID
+            msg_id: 消息ID
+            data: 消息数据
+        """
+        # 将任务添加到处理队列
+        self.task_queue.put(("text", client_id, msg_id, data))
+
+    async def handle_command(self, client_id, msg_id, data):
+        """
+        处理命令消息
+
+        参数:
+            client_id: 客户端ID
+            msg_id: 消息ID
+            data: 消息数据
+        """
+        # 将任务添加到处理队列
+        self.task_queue.put(("command", client_id, msg_id, data))
+
+    async def send_response(self, client_id, msg_id, response_type, data):
+        """
+        发送响应给客户端
+
+        参数:
+            client_id: 客户端ID
+            msg_id: 消息ID
+            response_type: 响应类型
+            data: 响应数据
+        """
+        # 检查客户端是否存在
+        if client_id not in self.clients:
+            logger.warning(f"客户端 {client_id} 不存在，无法发送响应")
+            return
+
+        # 构建响应消息
         response = {
             "type": response_type,
             "id": msg_id,
             "data": data
         }
 
-        await websocket.send(json.dumps(response))
+        # 序列化并发送
+        try:
+            await self.clients[client_id].send(json.dumps(response))
+            logger.debug(f"已发送响应: 客户端={client_id}, 类型={response_type}, ID={msg_id}")
+        except Exception as e:
+            logger.error(f"发送响应时出错: {str(e)}", exc_info=True)
 
-    async def send_error(self, websocket, msg_id, error_type, error_message):
+    async def send_error(self, client_id, msg_id, error_type, error_message):
         """
-        发送错误消息
+        发送错误响应给客户端
+
+        参数:
+            client_id: 客户端ID
+            msg_id: 消息ID
+            error_type: 错误类型
+            error_message: 错误消息
         """
+        # 检查客户端是否存在
+        if client_id not in self.clients:
+            logger.warning(f"客户端 {client_id} 不存在，无法发送错误响应")
+            return
+
+        # 构建错误响应
         response = {
             "type": "error",
             "id": msg_id,
@@ -339,20 +470,113 @@ class AIServer:
             }
         }
 
-        await websocket.send(json.dumps(response))
+        # 序列化并发送
+        try:
+            await self.clients[client_id].send(json.dumps(response))
+            logger.debug(f"已发送错误: 客户端={client_id}, 类型={error_type}, ID={msg_id}")
+        except Exception as e:
+            logger.error(f"发送错误响应时出错: {str(e)}", exc_info=True)
 
-    async def start_server(self, host="localhost", port=8765):
+    async def start_server(self):
+        """启动WebSocket服务器"""
+        try:
+            # 创建WebSocket服务器
+            self.server = await websockets.serve(
+                self.handle_client,
+                self.host,
+                self.port,
+                ping_interval=30,  # 30秒发送一次ping
+                ping_timeout=10,  # 10秒ping超时
+                max_size=10 * 1024 * 1024  # 最大消息大小10MB
+            )
+
+            logger.info(f"WebSocket服务器已启动: {self.host}:{self.port}")
+            return self.server
+
+        except Exception as e:
+            logger.error(f"启动服务器时出错: {str(e)}", exc_info=True)
+            raise
+
+    async def stop_server(self):
+        """停止WebSocket服务器"""
+        if self.server:
+            self.server.close()
+            await self.server.wait_closed()
+            logger.info("WebSocket服务器已停止")
+
+        # 停止处理线程
+        self.running = False
+        for _ in self.processing_threads:
+            self.task_queue.put(None)  # 发送停止信号
+
+        # 等待所有线程结束
+        for thread in self.processing_threads:
+            if thread.is_alive():
+                thread.join(timeout=2.0)
+
+        logger.info("所有处理线程已停止")
+
+    async def broadcast(self, msg_type, data):
         """
-        启动WebSocket服务器
+        向所有客户端广播消息
+
+        参数:
+            msg_type: 消息类型
+            data: 消息数据
         """
-        logger.info(f"启动服务器: {host}:{port}")
-        async with websockets.serve(self.handle_client, host, port):
-            await asyncio.Future()  # 无限运行
+        if not self.clients:
+            logger.info("没有连接的客户端，广播取消")
+            return
+
+        # 构建广播消息
+        message = {
+            "type": msg_type,
+            "id": f"broadcast_{int(time.time())}",
+            "data": data
+        }
+
+        # 序列化消息
+        message_json = json.dumps(message)
+
+        # 发送给所有客户端
+        disconnected_clients = []
+        for client_id, websocket in self.clients.items():
+            try:
+                await websocket.send(message_json)
+            except websockets.exceptions.ConnectionClosed:
+                disconnected_clients.append(client_id)
+            except Exception as e:
+                logger.error(f"向客户端 {client_id} 广播时出错: {str(e)}")
+
+        # 移除断开连接的客户端
+        for client_id in disconnected_clients:
+            if client_id in self.clients:
+                del self.clients[client_id]
+                logger.info(f"移除断开连接的客户端: {client_id}")
+
+        logger.info(f"广播消息已发送给 {len(self.clients)} 个客户端")
 
 
-if __name__ == "__main__":
+# 启动服务器的主函数
+async def main():
+    """主函数"""
     # 创建服务器实例
-    server = AIServer()
+    server = AIWebSocketServer(host="0.0.0.0", port=8765)
 
     # 启动服务器
-    asyncio.run(server.start_server())
+    await server.start_server()
+
+    try:
+        # 保持服务器运行
+        while True:
+            await asyncio.sleep(1)
+    except KeyboardInterrupt:
+        print("接收到中断信号，正在关闭服务器...")
+    finally:
+        # 停止服务器
+        await server.stop_server()
+
+
+# 如果直接运行此脚本，启动服务器
+if __name__ == "__main__":
+    asyncio.run(main())

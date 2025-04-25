@@ -11,7 +11,7 @@ def main():
     parser = argparse.ArgumentParser(description="使用OCR和LLM从PDF提取知识图谱")
     parser.add_argument("--pdf", required=True, help="PDF文件路径")
     parser.add_argument("--output", default="output/编译原理_知识图谱.json", help="输出JSON文件路径")
-    parser.add_argument("--ocr_lang", default="chi_sim+eng", help="OCR语言设置")
+    parser.add_argument("--ocr_lang", default="ch_sim+eng", help="OCR语言设置")
     parser.add_argument("--model", default=None, help="LLM模型路径")
     parser.add_argument("--sample_pages", type=int, default=None, help="要处理的页数，不指定则处理全部")
     args = parser.parse_args()
@@ -76,68 +76,23 @@ def main():
     # 4. 创建知识图谱
     print("\n4. 创建知识图谱")
     print("-" * 50)
-    from knowledge_extraction.knowledge_extractor import KnowledgeExtractor
-    ke = KnowledgeExtractor()
-    relationships = ke.extract_relationships(all_knowledge_points)
+    relationships = llm_extractor.extract_relationships_from_knowledge(all_knowledge_points)
 
     # 5. 保存知识图谱
-    from knowledge_extraction.knowledge_graph_builder import KnowledgeGraphBuilder
-    kg_builder = KnowledgeGraphBuilder()
-    kg_builder.add_knowledge_points(all_knowledge_points)
-    kg_builder.add_relationships(relationships)
-    kg_builder.save_to_json(args.output)
+    # 确保输出目录存在
+    output_dir = os.path.dirname(args.output)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+
+    llm_extractor.create_knowledge_graph(all_knowledge_points, relationships, args.output)
 
     print(f"\n知识图谱已保存至: {args.output}")
 
 
 def extract_with_progress(extractor, start_page, end_page):
     """带进度条的文本提取函数"""
-    from pdf2image import convert_from_path
-    import pytesseract
-
-    # 转换PDF页面为图像
-    print("正在将PDF转换为图像，这可能需要一些时间...")
-    pages = convert_from_path(
-        extractor.pdf_path,
-        dpi=300,
-        first_page=start_page + 1,  # pdf2image页码从1开始
-        last_page=end_page
-    )
-
-    print(f"成功转换 {len(pages)} 页PDF为图像，开始OCR处理...")
-
-    # 提取文本
-    all_text = []
-
-    # 使用tqdm创建进度条
-    for i, page in enumerate(tqdm(pages, desc="OCR处理进度", unit="页")):
-        # 创建临时目录用于保存图像
-        temp_dir = os.path.join(os.getcwd(), "temp_ocr")
-        os.makedirs(temp_dir, exist_ok=True)
-
-        # 保存图像
-        image_path = os.path.join(temp_dir, f"page_{i}.png")
-        page.save(image_path, "PNG")
-
-        # OCR处理
-        try:
-            text = pytesseract.image_to_string(image_path, lang=extractor.lang)
-            all_text.append(text)
-
-            # 删除临时图像文件
-            os.remove(image_path)
-
-        except Exception as e:
-            print(f"处理第 {i + 1} 页时出错: {e}")
-
-    # 合并文本
-    full_text = "\n\n".join(all_text)
-
-    # 清理文本
-    from knowledge_extraction.enhanced_pdf_extractor import EnhancedPDFExtractor
-    clean_text = EnhancedPDFExtractor._clean_text(None, full_text)
-
-    return clean_text
+    # 直接调用OCR提取器的extract_text方法
+    return extractor.extract_text(start_page=start_page, end_page=end_page)
 
 
 if __name__ == "__main__":
