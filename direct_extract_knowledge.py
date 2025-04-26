@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import argparse
+import io
 import json
 import logging
 import os
@@ -8,11 +9,36 @@ from collections import defaultdict
 
 from tqdm import tqdm
 
+from ai_server.utils.logger import setup_logger
 from knowledge_extraction.llm_knowledge_extractor import LLMKnowledgeExtractor
 
 # 设置日志
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger('direct_knowledge_extraction')
+#logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = setup_logger('direct_knowledge_extraction')
+
+# 创建一个特殊的 tqdm 类，避免与日志冲突
+class TqdmToLogger(io.StringIO):
+    """
+    重定向 tqdm 输出到日志
+    """
+    logger = None
+    level = None
+    buf = ''
+
+    def __init__(self, logger, level=None):
+        super(TqdmToLogger, self).__init__()
+        self.logger = logger
+        self.level = level or logging.INFO
+
+    def write(self, buf):
+        self.buf = buf.strip('\r\n\t ')
+
+    def flush(self):
+        if self.buf:
+            self.logger.log(self.level, self.buf)
+
+# 然后使用这个类替代标准 tqdm
+tqdm_out = TqdmToLogger(logger)
 
 
 def main():
@@ -58,14 +84,18 @@ def main():
             if str(i) in all_page_texts:
                 sample_text += all_page_texts[str(i)] + "\n\n"
 
-        prompt = f"""
-            分析以下教材文本样本，确定它属于哪个学科领域。
-            请从以下选项中选择一个: 计算机科学, 数学, 物理, 化学, 生物, 医学, 经济学, 心理学, 语言学, 历史, 文学, 哲学, 工程学, 教育学, 法学, 其他。
-            只返回领域名称，不要有任何其他文字:
+        # 首先尝试使用词汇表方法检测领域
+        domain = detect_domain_from_vocabulary(sample_text)
+        if domain in ["未知领域", "其他"]:
+            prompt = f"""
+                    分析以下教材文本样本，确定它属于哪个学科领域。
+                    请从以下选项中选择一个: 计算机科学, 数学, 物理, 化学, 生物, 医学, 经济学, 心理学, 语言学, 历史, 文学, 哲学, 工程学, 教育学, 法学, 其他。
+                    只返回领域名称，不要有任何其他文字:
 
-            {sample_text[:2000]}
-            """
-        domain = llm_extractor._generate_text(prompt, temperature=0.1).strip()
+                    {sample_text[:2000]}
+                    """
+            domain = llm_extractor._generate_text(prompt, temperature=0.1).strip()
+
         logger.info(f"检测到文档领域: {domain}")
         #print(f"检测到文档领域: {domain}")
 
@@ -87,10 +117,9 @@ def main():
     # 处理每一页
     for page_num in tqdm(page_nums, desc="提取知识点"):
         page_text = all_page_texts.get(str(page_num), "")
-
         logger.info(f"处理第 {page_num + 1} 页...")
         #print(f"处理第 {page_num + 1} 页...")
-
+        corrected_text = llm_extractor.correct_ocr_text(page_text, page_num + 1)
         # 使用现有方法提取知识点，但降低温度参数以增加格式一致性
         knowledge_points = llm_extractor.extract_knowledge_from_page(page_text, page_num + 1, domain=domain)
 
@@ -218,6 +247,96 @@ def main():
     logger.info(f"包含 {len(all_knowledge_points)} 个知识点和 {len(relationships)} 个关系")
     #print(f"包含 {len(all_knowledge_points)} 个知识点和 {len(relationships)} 个关系")
 
+def detect_domain_from_vocabulary(sample_text):
+    """
+    通过比较文本中的关键词与领域词汇表的匹配度来检测文档领域
+
+    参数:
+        sample_text: 文档样本文本
+
+    返回:
+        检测到的领域名称
+    """
+    import os
+    import re
+
+    # 域名映射（文件名到领域显示名称）
+    domain_mapping = {
+        "计算机科学_concepts.txt": "计算机科学",
+        "数学_concepts.txt": "数学",
+        "物理学_concepts.txt": "物理",
+        "化学_concepts.txt": "化学",
+        "生物学_concepts.txt": "生物",
+        "医学_concepts.txt": "医学",
+        "经济学_concepts.txt": "经济学",
+        "心理学_concepts.txt": "心理学",
+        "语言学_concepts.txt": "语言学",
+        "哲学_concepts.txt": "哲学"
+        # 可以添加更多领域映射
+    }
+
+    # 加载所有领域词汇表
+    domain_concepts = {}
+    domains_dir = "config/domains"
+
+    if not os.path.exists(domains_dir):
+        print(f"领域目录不存在: {domains_dir}")
+        return "未知领域"
+
+    # 读取每个领域的概念词汇表
+    for filename in os.listdir(domains_dir):
+        if filename.endswith("_concepts.txt"):
+            domain_name = domain_mapping.get(filename, filename.split('_')[0])
+            file_path = os.path.join(domains_dir, filename)
+
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    concepts = [line.strip() for line in f if line.strip()]
+                domain_concepts[domain_name] = concepts
+                logger.info(f"已加载{domain_name}领域词汇表，包含{len(concepts)}个概念")
+                #print(f"已加载{domain_name}领域词汇表，包含{len(concepts)}个概念")
+            except Exception as e:
+                logger.error(f"加载{filename}时出错: {e}")
+                #print(f"加载{filename}时出错: {e}")
+
+    if not domain_concepts:
+        logger.error("未能加载任何领域词汇表")
+        #print("未能加载任何领域词汇表")
+        return "未知领域"
+
+    # 对样本文本进行简单预处理
+    sample_text = sample_text.lower()
+
+    # 计算每个领域的匹配度
+    domain_scores = {}
+    for domain, concepts in domain_concepts.items():
+        # 创建一个计数器来跟踪匹配的概念
+        matches = 0
+
+        # 检查每个概念在文本中的出现情况
+        for concept in concepts:
+            # 对中文概念使用简单匹配
+            if re.search(r'\b' + re.escape(concept.lower()) + r'\b', sample_text) or concept.lower() in sample_text:
+                matches += 1
+
+        # 计算匹配分数（匹配概念数除以总概念数的百分比）
+        score = (matches / len(concepts)) * 100 if concepts else 0
+        domain_scores[domain] = score
+        logger.info(f"{domain}领域匹配度: {score:.2f}%，匹配了{matches}个概念")
+        #print(f"{domain}领域匹配度: {score:.2f}%，匹配了{matches}个概念")
+
+    # 找出得分最高的领域
+    if domain_scores:
+        best_domain = max(domain_scores.items(), key=lambda x: x[1])
+        logger.info(f"最佳匹配领域: {best_domain[0]}，匹配度: {best_domain[1]:.2f}%")
+        #print(f"最佳匹配领域: {best_domain[0]}，匹配度: {best_domain[1]:.2f}%")
+
+        # 如果最佳匹配的分数太低（低于阈值），则返回"其他"
+        if best_domain[1] < 5:  # 5%的阈值，可以根据需要调整
+            return "其他"
+        return best_domain[0]
+    else:
+        return "未知领域"
 
 if __name__ == "__main__":
     main()

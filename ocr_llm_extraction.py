@@ -1,16 +1,16 @@
 # ocr_llm_extraction.py
 import argparse
 import json
-import logging
 import os
 
 from tqdm import tqdm
 
+from ai_server.utils.logger import setup_logger
 from knowledge_extraction.llm_knowledge_extractor import LLMKnowledgeExtractor
 from knowledge_extraction.ocr_pdf_extractor import OCRPDFExtractor
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger('ocr_llm_extraction')
+#logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = setup_logger('ocr_llm_extraction')
 
 
 def main():

@@ -1,5 +1,4 @@
 # knowledge_extraction/ocr_pdf_extractor.py
-import logging
 import os
 import re
 import tempfile
@@ -9,9 +8,11 @@ import torch
 from pdf2image import convert_from_path
 from tqdm import tqdm
 
+from ai_server.utils.logger import setup_logger
+
 # 创建日志记录器
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger('ocr_pdf_extractor')
+#logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = setup_logger('ocr_pdf_extractor')
 
 
 class OCRPDFExtractor:

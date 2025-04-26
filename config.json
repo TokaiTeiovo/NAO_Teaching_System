@@ -19,6 +19,9 @@
       "uri": "bolt://localhost:7687",
       "user": "neo4j",
       "password": "admin123"
-    }
+    },
+    "domain": "计算机科学",
+    "default_importance": 3,
+    "default_difficulty": 3
   }
 }
