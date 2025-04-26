@@ -113,6 +113,8 @@ def main():
     # 按页码排序
     page_nums = sorted([int(pn) for pn in all_page_texts.keys()])
 
+    failed_pages = []
+
     for page_num in tqdm(page_nums, desc="提取知识点"):
         page_text = all_page_texts.get(str(page_num), "")
 
@@ -128,6 +130,7 @@ def main():
             all_knowledge_points.extend(knowledge_points)
             print(f"从第 {page_num + 1} 页提取了 {len(knowledge_points)} 个知识点")
         else:
+            failed_pages.append(page_num)
             print(f"未能从第 {page_num + 1} 页提取知识点")
 
         # 每10页保存一次中间结果
@@ -135,6 +138,20 @@ def main():
             temp_kg_file = os.path.join(temp_dir, f"knowledge_points_to_page_{page_num + 1}.json")
             with open(temp_kg_file, 'w', encoding='utf-8') as f:
                 json.dump(all_knowledge_points, f, ensure_ascii=False, indent=2)
+
+    # 重试失败的页面
+    if failed_pages:
+        logger.info(f"尝试重新处理 {len(failed_pages)} 个失败的页面...")
+        #print(f"\n尝试重新处理 {len(failed_pages)} 个失败的页面...")
+        for page_num in tqdm(failed_pages, desc="重试提取"):
+            # 使用更低的温度参数重试
+            page_text = all_page_texts.get(str(page_num), "")
+            knowledge_points = llm_extractor.extract_knowledge_from_page(page_text, page_num + 1)
+
+            if knowledge_points:
+                all_knowledge_points.extend(knowledge_points)
+                logger.info(f"重试成功: 从第 {page_num + 1} 页提取了 {len(knowledge_points)} 个知识点")
+                #print(f"重试成功: 从第 {page_num + 1} 页提取了 {len(knowledge_points)} 个知识点")
 
     # 提取概念关系
     print("\n提取概念间的关系")

@@ -11,7 +11,14 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 # 创建日志记录器
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger('llm_knowledge_extractor')
+# 关闭 TensorFlow 警告
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # 0=默认显示所有，1=INFO，2=WARNING，3=ERROR
 
+# 关闭 oneDNN 自定义操作提示
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+
+# 设置加速库日志级别
+logging.getLogger("accelerate").setLevel(logging.ERROR)
 
 class LLMKnowledgeExtractor:
     """
@@ -31,7 +38,7 @@ class LLMKnowledgeExtractor:
 
         # 加载模型
         logger.info(f"加载大模型: {self.model_path}")
-        print(f"加载大模型: {self.model_path}")
+        #print(f"加载大模型: {self.model_path}")
         self._load_model()
     def _load_model(self):
         """加载大模型"""
@@ -39,14 +46,17 @@ class LLMKnowledgeExtractor:
             # 检查模型路径是文件夹还是模型名称
             is_local_path = os.path.exists(self.model_path)
             logger.info(f"使用{'本地' if is_local_path else '远程'}模型: {self.model_path}")
-            print(f"使用{'本地' if is_local_path else '远程'}模型: {self.model_path}")
+            #print(f"使用{'本地' if is_local_path else '远程'}模型: {self.model_path}")
 
             # 检查GPU是否可用
             if torch.cuda.is_available():
-                print(f"GPU可用: {torch.cuda.get_device_name(0)}")
-                print(f"GPU内存: {torch.cuda.get_device_properties(0).total_memory / 1024 ** 3:.2f} GB")
+                logger.info(f"GPU可用: {torch.cuda.get_device_name(0)}")
+                #print(f"GPU可用: {torch.cuda.get_device_name(0)}")
+                logger.info(f"GPU内存: {torch.cuda.get_device_properties(0).total_memory / 1024 ** 3:.2f} GB")
+                #print(f"GPU内存: {torch.cuda.get_device_properties(0).total_memory / 1024 ** 3:.2f} GB")
             else:
-                print("警告: GPU不可用，将使用CPU运行")
+                logger.error("警告: GPU不可用，将使用CPU运行")
+                #print("警告: GPU不可用，将使用CPU运行")
 
             # 加载分词器
             self.tokenizer = AutoTokenizer.from_pretrained(
@@ -56,49 +66,24 @@ class LLMKnowledgeExtractor:
 
             # GPU设置
             if torch.cuda.is_available():
-                # 获取GPU内存信息
-                gpu_mem = torch.cuda.get_device_properties(0).total_memory / 1024 ** 3  # GB
-                # 根据GPU内存大小调整量化参数
-
-                # 对于高端GPU (>12GB)，可以尝试加载全精度或半精度模型
-                if gpu_mem > 12:
-                    print(f"检测到大容量GPU ({gpu_mem:.2f}GB)，尝试加载半精度模型")
-                    self.model = AutoModelForCausalLM.from_pretrained(
-                        self.model_path,
-                        torch_dtype=torch.float16,
-                        device_map="auto",
-                        trust_remote_code=True
-                    )
-                # 对于中等GPU (8-12GB)，使用8位量化
-                elif gpu_mem > 8:
-                    print(f"检测到中等容量GPU ({gpu_mem:.2f}GB)，使用8位量化")
-                    bnb_config = BitsAndBytesConfig(
-                        load_in_8bit=True
-                    )
-                    self.model = AutoModelForCausalLM.from_pretrained(
-                        self.model_path,
-                        quantization_config=bnb_config,
-                        device_map="auto",
-                        trust_remote_code=True
-                    )
-                # 对于小型GPU (<8GB)，使用4位量化
-                else:
-                    print(f"检测到小容量GPU ({gpu_mem:.2f}GB)，使用4位量化")
-                    bnb_config = BitsAndBytesConfig(
-                        load_in_4bit=True,
-                        bnb_4bit_use_double_quant=True,
-                        bnb_4bit_quant_type="nf4",
-                        bnb_4bit_compute_dtype=torch.bfloat16
-                    )
-                    self.model = AutoModelForCausalLM.from_pretrained(
-                        self.model_path,
-                        quantization_config=bnb_config,
-                        device_map="auto",
-                        trust_remote_code=True
-                    )
+                logger.info(f"使用4位量化")
+                #print(f"使用4位量化")
+                bnb_config = BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_use_double_quant=True,
+                    bnb_4bit_quant_type="nf4",
+                    bnb_4bit_compute_dtype=torch.bfloat16
+                )
+                self.model = AutoModelForCausalLM.from_pretrained(
+                    self.model_path,
+                    quantization_config=bnb_config,
+                    device_map="auto",
+                    trust_remote_code=True
+                )
             else:
                 # 如果GPU不可用，回退到CPU
-                print("使用CPU加载模型")
+                logger.info("使用CPU加载模型")
+                #print("使用CPU加载模型")
                 self.model = AutoModelForCausalLM.from_pretrained(
                     self.model_path,
                     device_map="cpu",
@@ -108,14 +93,14 @@ class LLMKnowledgeExtractor:
                 )
 
             logger.info("模型加载完成")
-            print("模型加载完成")
+            #print("模型加载完成")
 
         except Exception as e:
             logger.error(f"加载模型时出错: {e}")
-            print(f"加载模型时出错: {e}")
+            #print(f"加载模型时出错: {e}")
             raise
 
-    def _generate_text(self, prompt, max_length=2048, temperature=0.7):
+    def _generate_text(self, prompt, max_length=2048, temperature=0.9):
         """生成文本"""
         try:
             inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
@@ -126,7 +111,7 @@ class LLMKnowledgeExtractor:
                     max_length=max_length,
                     temperature=temperature,
                     do_sample=True,
-                    pad_token_id=self.tokenizer.eos_token_id
+                    pad_token_id=self.tokenizer.eos_token_id,
                 )
 
             response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
@@ -138,7 +123,7 @@ class LLMKnowledgeExtractor:
             return response
         except Exception as e:
             logger.error(f"生成文本时出错: {e}")
-            print(f"生成文本时出错: {e}")
+            #print(f"生成文本时出错: {e}")
             return ""
 
     def extract_knowledge_from_text(self, text, chapter_title=""):
@@ -182,7 +167,8 @@ class LLMKnowledgeExtractor:
                         json_str = "[" + json_str.group(0) + "]"
                     else:
                         # 没有找到JSON，返回空列表
-                        print(f"未能从响应中提取JSON结构: {response[:100]}...")
+                        logger.error(f"未能从响应中提取JSON结构: {response[:3]}...")
+                        #print(f"未能从响应中提取JSON结构: {response[:100]}...")
                         return []
 
                 # 尝试解析JSON
@@ -207,12 +193,12 @@ class LLMKnowledgeExtractor:
 
             except Exception as e:
                 logger.error(f"处理JSON时出错: {e}")
-                print(f"处理JSON时出错: {e}")
+                #print(f"处理JSON时出错: {e}")
                 return []
 
         except Exception as e:
             logger.error(f"提取关系时出错: {e}")
-            print(f"提取关系时出错: {e}")
+            #print(f"提取关系时出错: {e}")
             return []
 
     def process_chapters(self, chapters):
@@ -424,22 +410,44 @@ class LLMKnowledgeExtractor:
 
         return relationships
 
-    def extract_knowledge_from_page(self, page_text, page_number):
+    def extract_knowledge_from_page(self, page_text, page_number, domain=None, temperature=0.7):
         """从单个页面的文本中提取知识点"""
         try:
-            # 构建提示
-            prompt = f"""
-    你是一个知识图谱提取专家。请从下面的编译原理教材第{page_number}页文本中提取关键概念及其定义。
-    请按照以下JSON格式输出提取的知识点:
-    [
-      {{
-        "concept": "概念名称",
-        "definition": "概念定义",
-        "page": {page_number},
-        "importance": 4,
-        "difficulty": 3
-      }}
-    ]"""
+            # 如果提供了领域，使用领域特定的提示词
+            if domain:
+                prompt = f"""
+        你是一名{domain}专家。请从下面的教材第{page_number}页文本中提取关键概念及其定义。
+        请严格按照以下JSON格式输出提取的知识点，不要添加任何其他解释：
+
+        [
+          {{
+            "concept": "概念名称",
+            "definition": "概念定义",
+            "page": {page_number},
+            "importance": 4,
+            "difficulty": 3
+          }}
+        ]
+
+        重要提示：
+        1. 仅返回JSON数组，不要有任何额外文字说明
+        2. 如果找不到知识点，返回空数组 []
+        3. 确保每个概念都有definition、page、importance和difficulty字段
+        """
+            else:
+                # 使用原有的提示词
+                prompt = f"""
+        你是一个知识图谱提取专家。请从下面的教材第{page_number}页文本中提取关键概念及其定义。
+        请按照以下JSON格式输出提取的知识点:
+        [
+          {{
+            "concept": "概念名称",
+            "definition": "概念定义",
+            "page": {page_number},
+            "importance": 4,
+            "difficulty": 3
+          }}
+        ]"""
 
             # 由于模型的上下文长度限制，我们需要限制输入文本的长度
             max_text_length = 4000  # 根据您的模型调整这个值
@@ -450,7 +458,7 @@ class LLMKnowledgeExtractor:
             full_prompt = prompt + "\n\n" + page_text
 
             # 生成回答
-            response = self._generate_text(full_prompt)
+            response = self._generate_text(full_prompt, temperature=temperature)
 
             # 提取JSON部分
             try:
@@ -459,32 +467,65 @@ class LLMKnowledgeExtractor:
                 if json_match:
                     json_str = json_match.group(0)
                 else:
-                    # 尝试匹配任何可能的JSON结构
-                    json_str = re.search(r'\{.*\}', response, re.DOTALL)
-                    if json_str:
-                        json_str = "[" + json_str.group(0) + "]"
+                    # 尝试提取任何可能包含JSON的部分
+                    potential_json = re.findall(r'\{[^{}]*\}', response, re.DOTALL)
+                    if potential_json:
+                        json_str = "[" + ",".join(potential_json) + "]"
                     else:
-                        # 没有找到JSON，返回空列表
-                        print(f"未能从响应中提取JSON结构: {response[:100]}...")
+                        logger.info(f"未能从响应中提取JSON结构: {response[:10]}...")
+                        #print(f"未能从响应中提取JSON结构: {response[:100]}...")
                         return []
 
                 # 尝试解析JSON
                 try:
                     knowledge_points = json.loads(json_str)
+                    # 验证所有必要字段
+                    for point in knowledge_points:
+                        point["page"] = page_number  # 确保page字段存在并正确
+                        # 设置默认值
+                        if "importance" not in point: point["importance"] = 3
+                        if "difficulty" not in point: point["difficulty"] = 3
                     return knowledge_points
                 except json.JSONDecodeError as e:
-                    print(f"JSON解析错误: {e}")
-                    print(f"尝试修复JSON...")
+                    logger.info(f"JSON解析错误: {e}")
+                    #print(f"JSON解析错误: {e}")
+                    logger.info(f"尝试修复JSON...")
+                    #print(f"尝试修复JSON...")
 
-                    # 尝试修复常见的JSON错误
+                    # 更多的JSON修复尝试
                     fixed_json = json_str.replace("'", '"')  # 替换单引号为双引号
                     fixed_json = re.sub(r',\s*\]', ']', fixed_json)  # 移除数组末尾多余的逗号
+                    fixed_json = re.sub(r'(\w+):', r'"\1":', fixed_json)  # 给属性名添加引号
+                    fixed_json = re.sub(r':\s*"([^"]*)"([^,\]}])', r':"\1\2"', fixed_json)  # 修复未闭合的引号
 
                     try:
                         knowledge_points = json.loads(fixed_json)
-                        print("JSON修复成功!")
+                        logger.info("JSON修复成功!")
+                        #print("JSON修复成功!")
                         return knowledge_points
                     except:
+                        # 最后尝试更激进的修复方法
+                        try:
+                            # 尝试用正则表达式逐个提取概念和定义
+                            concepts = re.findall(r'"concept"\s*:\s*"([^"]+)"', fixed_json)
+                            definitions = re.findall(r'"definition"\s*:\s*"([^"]+)"', fixed_json)
+
+                            if concepts:
+                                knowledge_points = []
+                                for i, concept in enumerate(concepts):
+                                    definition = definitions[i] if i < len(definitions) else ""
+                                    knowledge_points.append({
+                                        "concept": concept,
+                                        "definition": definition,
+                                        "page": page_number,
+                                        "importance": 3,
+                                        "difficulty": 3
+                                    })
+                                print("通过手动解析修复JSON成功!")
+                                return knowledge_points
+                        except:
+                            pass
+
                         print("JSON修复失败，返回空列表")
                         return []
 
@@ -497,3 +538,30 @@ class LLMKnowledgeExtractor:
             logger.error(f"提取知识点时出错: {e}")
             print(f"提取知识点时出错: {e}")
             return []
+
+    def extract_with_vocabulary(self, page_text, page_number, vocabulary, temperature=0.1):
+        """使用词汇表辅助提取知识点"""
+        extracted_points = []
+
+        for concept in vocabulary:
+            # 检查概念是否出现在文本中
+            if concept.lower() in page_text.lower():
+                # 构建针对性提示词
+                prompt = f"""
+    在教材的第{page_number}页中提到了"{concept}"这个概念。
+    请从以下文本中提取出这个概念的准确定义，只返回定义内容，不要有任何其他文字：
+
+    {page_text}
+    """
+                definition = self._generate_text(prompt, temperature=temperature)
+
+                if definition and len(definition) > 10:  # 简单的有效性检查
+                    extracted_points.append({
+                        "concept": concept,
+                        "definition": definition,
+                        "page": page_number,
+                        "importance": 4,  # 默认值
+                        "difficulty": 3  # 默认值
+                    })
+
+        return extracted_points
