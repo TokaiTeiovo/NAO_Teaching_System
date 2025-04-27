@@ -5,7 +5,6 @@ import os
 import re
 
 import torch
-from tqdm import tqdm
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 
 from ai_server.utils.logger import setup_logger
@@ -42,6 +41,19 @@ class LLMKnowledgeExtractor:
         logger.info(f"加载大模型: {self.model_path}")
         #print(f"加载大模型: {self.model_path}")
         self._load_model()
+
+        # 初始化OCR错误修正字典
+        self.ocr_fixes = {
+            "属性文祛": "属性文法",
+            "语祛分析": "语法分析",
+            "词祛分析": "词法分析",
+            "正则表达式式": "正则表达式",
+            "有限状态机机": "有限状态机",
+            "自动机机": "自动机",
+            "0": "O",  # 数字0和字母O混淆
+            "l": "I",  # 小写L和大写I混淆
+            " ": ""    # 移除多余空格
+        }
 
     def _load_model(self):
         """加载大模型"""
@@ -204,533 +216,193 @@ class LLMKnowledgeExtractor:
             #print(f"提取关系时出错: {e}")
             return []
 
-    def process_chapters(self, chapters):
-        """
-        处理多个章节
-
-        参数:
-            chapters: 章节字典，格式为 {chapter_title: chapter_text}
-
-        返回:
-            知识点列表和关系列表
-        """
-        all_knowledge_points = []
-
-        # 从每个章节提取知识点
-        for chapter_title, chapter_info in tqdm(chapters.items(), desc="处理章节"):
-            chapter_text = chapter_info["text"]
-
-            # 跳过太短的章节
-            if len(chapter_text) < 100:
-                print(f"跳过过短的章节: {chapter_title}")
-                continue
-
-            print(f"正在从章节 '{chapter_title}' 提取知识点...")
-
-            # 提取知识点
-            knowledge_points = self.extract_knowledge_from_text(chapter_text, chapter_title)
-
-            if knowledge_points:
-                all_knowledge_points.extend(knowledge_points)
-                print(f"从章节 '{chapter_title}' 提取了 {len(knowledge_points)} 个知识点")
-            else:
-                print(f"未能从章节 '{chapter_title}' 提取知识点")
-
-        # 提取关系
-        print("\n正在提取概念间的关系...")
-        relationships = self.extract_relationships_from_knowledge(all_knowledge_points)
-
-        print(f"总共提取了 {len(all_knowledge_points)} 个知识点和 {len(relationships)} 个关系")
-
-        return all_knowledge_points, relationships
-
-    def create_knowledge_graph(self, knowledge_points, relationships, output_path):
-        """
-        创建知识图谱并保存为JSON
-
-        参数:
-            knowledge_points: 知识点列表
-            relationships: 关系列表
-            output_path: 输出路径
-
-        返回:
-            是否成功
-        """
-        try:
-            # 清理和去重概念
-            cleaned_points = []
-            concepts_set = set()
-
-            for kp in knowledge_points:
-                # 清理概念名称
-                concept = kp["concept"].strip()
-                if not concept or concept == "概念名称" or len(concept) < 2:
-                    continue
-
-                # 清理定义
-                definition = kp.get("definition", "").strip()
-                if not definition or definition == "概念定义" or len(definition) < 5:
-                    definition = "定义待补充"
-
-                # 去重检查
-                if concept.lower() in concepts_set:
-                    continue
-
-                concepts_set.add(concept.lower())
-
-                # 添加到清理后的列表
-                cleaned_points.append({
-                    "concept": concept,
-                    "definition": definition,
-                    "page": kp.get("page", 1),
-                    "importance": kp.get("importance", 3),
-                    "difficulty": kp.get("difficulty", 3)
-                })
-
-            # 创建节点
-            nodes = []
-            for kp in cleaned_points:
-                node = {
-                    "id": kp["concept"],
-                    "name": kp["concept"],
-                    "type": "Concept",
-                    "definition": kp.get("definition", ""),
-                    "chapter": "",  # 默认为空
-                    "importance": kp.get("importance", 3),
-                    "difficulty": kp.get("difficulty", 3)
-                }
-                nodes.append(node)
-
-            # 清理和去重关系
-            cleaned_relationships = []
-            rel_keys = set()
-
-            for rel in relationships:
-                src = rel.get("source", "").strip()
-                tgt = rel.get("target", "").strip()
-                rel_type = rel.get("relation", "IS_RELATED_TO").strip()
-
-                # 跳过无效关系
-                if not src or not tgt or src == tgt:
-                    continue
-
-                # 去重检查
-                rel_key = (src, tgt, rel_type)
-                if rel_key in rel_keys:
-                    continue
-
-                rel_keys.add(rel_key)
-
-                # 添加到清理后的列表
-                cleaned_relationships.append({
-                    "source": src,
-                    "target": tgt,
-                    "relation": rel_type,
-                    "strength": rel.get("strength", 0.5)
-                })
-
-            # 自动生成关系 - 确保至少每个概念都有一些关系
-            nodes_with_rels = set()
-            for rel in cleaned_relationships:
-                nodes_with_rels.add(rel["source"])
-                nodes_with_rels.add(rel["target"])
-
-            # 为没有关系的节点自动添加最基本的关系
-            for node in nodes:
-                concept = node["id"]
-                if concept not in nodes_with_rels:
-                    # 找最可能相关的概念
-                    for other_node in nodes:
-                        other_concept = other_node["id"]
-                        if concept != other_concept and concept in other_concept or other_concept in concept:
-                            cleaned_relationships.append({
-                                "source": concept,
-                                "target": other_concept,
-                                "relation": "IS_RELATED_TO",
-                                "strength": 0.7
-                            })
-                            nodes_with_rels.add(concept)
-                            break
-
-            # 创建链接
-            links = []
-            for rel in cleaned_relationships:
-                # 验证源和目标在节点列表中
-                src_exists = any(node["id"] == rel["source"] for node in nodes)
-                tgt_exists = any(node["id"] == rel["target"] for node in nodes)
-
-                if src_exists and tgt_exists:
-                    link = {
-                        "source": rel["source"],
-                        "target": rel["target"],
-                        "type": rel["relation"],
-                        "strength": rel.get("strength", 0.5)
-                    }
-                    links.append(link)
-
-            # 创建知识图谱
-            graph = {
-                "nodes": nodes,
-                "links": links
-            }
-
-            # 确保输出目录存在
-            os.makedirs(os.path.dirname(output_path), exist_ok=True)
-
-            # 保存到文件
-            with open(output_path, 'w', encoding='utf-8') as f:
-                json.dump(graph, f, ensure_ascii=False, indent=2)
-
-            logger.info(f"知识图谱已保存到: {output_path}")
-            logger.info(f"包含 {len(nodes)} 个节点和 {len(links)} 个链接")
-
-            return True
-
-        except Exception as e:
-            logger.error(f"创建知识图谱时出错: {e}")
-            return False
-
-    def extract_relationships_from_knowledge(self, knowledge_points):
-        """
-        从知识点中提取关系
-
-        参数:
-            knowledge_points: 知识点列表
-
-        返回:
-            关系列表
-        """
-        # 首先提示模型生成一些通用关系
-        relationships = self._generate_relationships_with_model(knowledge_points)
-
-        # 然后从定义中提取隐含关系
-        definition_relationships = self._extract_relationships_from_definitions(knowledge_points)
-
-        # 合并关系列表
-        relationships.extend(definition_relationships)
-
-        print(f"从知识点中提取了 {len(relationships)} 个关系")
-        return relationships
-
-    def _generate_relationships_with_model(self, knowledge_points, max_concepts=30):
-        """使用模型生成概念间的关系"""
-        relationships = []
-
-        # 如果知识点太多，只使用前max_concepts个
-        concepts = [kp["concept"] for kp in knowledge_points[:max_concepts]]
-        if not concepts:
-            return []
-
-        concepts_str = ", ".join([f'"{c}"' for c in concepts])
-
-        prompt = f"""
-分析以下概念之间的关系，并返回JSON格式的关系列表:
-概念: {concepts_str}
-
-请返回这些概念之间可能存在的关系，格式如下:
-[
-  {{
-    "source": "源概念",
-    "target": "目标概念",
-    "relation": "关系类型",
-    "strength": 0.8
-  }}
-]
-
-关系类型包括:
-- INCLUDES: 包含关系
-- IS_PART_OF: 是...的一部分
-- IS_PREREQUISITE_OF: 是...的前提
-- IS_RELATED_TO: 与...相关
-- REFERS_TO: 引用了
-- SIMILAR_TO: 与...相似
-"""
-
-        response = self._generate_text(prompt)
-
-        # 提取JSON
-        try:
-            json_match = re.search(r'\[\s*\{.*\}\s*\]', response, re.DOTALL)
-            if json_match:
-                json_str = json_match.group(0)
-                rels = json.loads(json_str)
-                relationships.extend(rels)
-            else:
-                print("无法从关系生成响应中提取JSON")
-        except Exception as e:
-            print(f"解析关系JSON时出错: {e}")
-
-        return relationships
-
-    def _extract_relationships_from_definitions(self, knowledge_points):
-        """从定义中提取隐含关系"""
-        relationships = []
-
-        for kp1 in knowledge_points:
-            concept1 = kp1["concept"]
-            definition1 = kp1.get("definition", "")
-
-            for kp2 in knowledge_points:
-                concept2 = kp2["concept"]
-
-                # 避免自我关系
-                if concept1 == concept2:
-                    continue
-
-                # 检查概念2是否出现在概念1的定义中
-                if concept2 in definition1 and len(concept2) > 2:
-                    # 添加一个引用关系
-                    relationships.append({
-                        "source": concept1,
-                        "target": concept2,
-                        "relation": "REFERS_TO",
-                        "strength": 0.7
-                    })
-
-                # 检查概念包含关系
-                if len(concept2) > 3 and concept2 in concept1 and concept2 != concept1:
-                    relationships.append({
-                        "source": concept1,
-                        "target": concept2,
-                        "relation": "INCLUDES",
-                        "strength": 0.8
-                    })
-
-        return relationships
-
     def extract_knowledge_from_page(self, page_text, page_number, domain=None, temperature=0.7):
         """从单个页面的文本中提取知识点"""
         try:
-            # 如果文本太短，直接返回
-            if len(page_text.strip()) < 100:
-                logger.info(f"第{page_number}页文本太短，跳过")
-                return []
+            # 评估文本质量，调整参数
+            if len(page_text.strip()) < 100 or page_text.count(' ') / max(1, len(page_text)) > 0.5:
+                logger.info(f"第 {page_number} 页文本质量可能不佳，使用低温度参数")
+                temperature = 0.3  # 降低温度参数提高精确度
 
-            # 使用更强的提示词，强调容错
-            prompt = f"""
-        你是一名专业的{domain if domain else '计算机科学'}教材分析专家。
-        当前在处理《编译原理》教材的第{page_number}页文本。
+            # 构建提示词
+            if domain:
+                prompt = f"""
+        你是一名{domain}领域的专家。请仔细分析下面的教材第{page_number}页文本，提取所有关键概念及其精确定义。
 
-        任务: 从文本中提取关键概念及其定义。
+        请注意:
+        1. 提取所有重要的专业术语和概念
+        2. 为每个概念提供其在文本中的准确定义
+        3. 修正任何明显的识别错误
+        4. 确保每个定义与对应的概念匹配，不混淆不同概念
 
-        重要说明:
-        1. 即使文本中可能有OCR错误，也请尽力理解并提取核心概念
-        2. 如发现术语中的明显错误，请修正后提取
-        3. 如果定义不完整或有错别字，请合理推断并修正
-
-        请使用以下JSON格式返回提取的知识点:
+        请严格按照以下JSON格式返回结果，不要添加任何额外文字:
         [
           {{
-            "concept": "词法分析",
-            "definition": "将源程序分解成一个个单词符号的过程",
+            "concept": "概念名称",
+            "definition": "该概念的精确定义",
             "page": {page_number},
-            "importance": 5,
-            "difficulty": 3
+            "importance": 1-5的整数（表示概念重要性）,
+            "difficulty": 1-5的整数（表示概念难度）
           }}
         ]
-
-        文本内容:
-        {page_text}
         """
+            else:
+                # 通用提示词
+                prompt = f"""
+            你是一名专业知识提取专家。请从下面的教材第{page_number}页文本中提取所有关键概念及其精确定义。
 
+            请注意:
+            1. 找出所有独特的专业术语和概念
+            2. 确保每个概念有其准确的定义，不要重复定义
+            3. 避免错误的识别结果（如"属性文祛"应为"属性文法"）
+            4. 确保每个定义与其对应的概念匹配
+
+            请严格按照以下JSON格式返回结果，不要添加任何额外文字:
+            [
+              {{
+                "concept": "概念名称",
+                "definition": "该概念的精确定义",
+                "page": {page_number},
+                "importance": 1-5的整数（表示概念重要性）,
+                "difficulty": 1-5的整数（表示概念难度）
+              }}
+            ]
+            """
             # 由于模型的上下文长度限制，我们需要限制输入文本的长度
             max_text_length = 4000  # 根据您的模型调整这个值
             if len(page_text) > max_text_length:
                 page_text = page_text[:max_text_length]
 
-
-            # 添加文本到提示
-            full_prompt = prompt + "\n\n文本内容:\n" + page_text
+            full_prompt = prompt + "\n\n" + page_text
 
             # 生成回答
-            response = self._generate_text(prompt, temperature=0.2)
+            response = self._generate_text(full_prompt, temperature=0.2)
 
             knowledge_points = self._extract_json_from_response(response, page_number)
-
             # 提取JSON部分
-            # try:
-            #     # 尝试匹配JSON数组
-            #     json_match = re.search(r'\[\s*\{.*?\}\s*\]', response, re.DOTALL)
-            #     if json_match:
-            #         json_str = json_match.group(0)
-            #     else:
-            #         # 尝试提取任何可能包含JSON的部分
-            #         potential_json = re.findall(r'\{[^{}]*\}', response, re.DOTALL)
-            #         if potential_json:
-            #             json_str = "[" + ",".join(potential_json) + "]"
-            #         else:
-            #             logger.info(f"未能从响应中提取JSON结构: {response[:10]}...")
-            #             #print(f"未能从响应中提取JSON结构: {response[:100]}...")
-            #             return []
-            #
-            #     # 尝试解析JSON
-            #     try:
-            #         knowledge_points = json.loads(json_str)
-            #         # 验证所有必要字段
-            #         for point in knowledge_points:
-            #             point["page"] = page_number  # 确保page字段存在并正确
-            #             # 设置默认值
-            #             if "importance" not in point: point["importance"] = 3
-            #             if "difficulty" not in point: point["difficulty"] = 3
-            #         return knowledge_points
-            #     except json.JSONDecodeError as e:
-            #         logger.info(f"JSON解析错误: {e}")
-            #         #print(f"JSON解析错误: {e}")
-            #         logger.info(f"尝试修复JSON...")
-            #         #print(f"尝试修复JSON...")
-            #
-            #         # 更多的JSON修复尝试
-            #         fixed_json = json_str.replace("'", '"')  # 替换单引号为双引号
-            #         fixed_json = re.sub(r',\s*\]', ']', fixed_json)  # 移除数组末尾多余的逗号
-            #         fixed_json = re.sub(r'(\w+):', r'"\1":', fixed_json)  # 给属性名添加引号
-            #         fixed_json = re.sub(r':\s*"([^"]*)"([^,\]}])', r':"\1\2"', fixed_json)  # 修复未闭合的引号
-            #
-            #         try:
-            #             knowledge_points = json.loads(fixed_json)
-            #             logger.info("JSON修复成功!")
-            #             #print("JSON修复成功!")
-            #             return knowledge_points
-            #         except:
-            #             # 最后尝试更激进的修复方法
-            #             try:
-            #                 # 尝试用正则表达式逐个提取概念和定义
-            #                 concepts = re.findall(r'"concept"\s*:\s*"([^"]+)"', fixed_json)
-            #                 definitions = re.findall(r'"definition"\s*:\s*"([^"]+)"', fixed_json)
-            #
-            #                 if concepts:
-            #                     knowledge_points = []
-            #                     for i, concept in enumerate(concepts):
-            #                         definition = definitions[i] if i < len(definitions) else ""
-            #                         knowledge_points.append({
-            #                             "concept": concept,
-            #                             "definition": definition,
-            #                             "page": page_number,
-            #                             "importance": 3,
-            #                             "difficulty": 3
-            #                         })
-            #                     print("通过手动解析修复JSON成功!")
-            #                     return knowledge_points
-            #             except:
-            #                 pass
-            #
-            #             print("JSON修复失败，返回空列表")
-            #             return []
-            #
-            # except Exception as e:
-            #     logger.error(f"处理JSON时出错: {e}")
-            #     print(f"处理JSON时出错: {e}")
-            #     return []
+            try:
+                # 尝试匹配JSON数组
+                json_match = re.search(r'\[\s*\{.*?\}\s*\]', response, re.DOTALL)
+                if json_match:
+                    json_str = json_match.group(0)
+                else:
+                    # 尝试匹配任何可能的JSON结构
+                    json_str = re.search(r'\{.*\}', response, re.DOTALL)
+                    if json_str:
+                        json_str = "[" + json_str.group(0) + "]"
+                    else:
+                        logger.error(f"未能从响应中提取JSON结构")
+                        return []
 
-            # if not knowledge_points or all(kp["concept"] == "概念名称" for kp in knowledge_points):
-            #     logger.warning(f"第{page_number}页知识点提取失败，尝试备选策略")
-            #     # 备选策略：使用更直接的方式提取概念
-            #     return self._extract_knowledge_fallback(page_text, page_number, domain)
-            #
-            # return knowledge_points
+                # 尝试解析JSON
+                try:
+                    knowledge_points = json.loads(json_str)
+                    # 后处理：修正概念名称、确保页码正确
+                    for point in knowledge_points:
+                        point["concept"] = self._fix_concept(point["concept"])
+                        point["definition"] = self._clean_text(point["definition"])
+                        point["page"] = page_number  # 确保页码正确
+                        # 确保有合理的重要性和难度值
+                        if "importance" not in point or not isinstance(point["importance"], int):
+                            point["importance"] = 3
+                        if "difficulty" not in point or not isinstance(point["difficulty"], int):
+                            point["difficulty"] = 3
 
-            return knowledge_points
+                    return knowledge_points
+                except json.JSONDecodeError as e:
+                    logger.error(f"JSON解析错误: {e}")
+                    logger.info(f"尝试修复JSON...")
+
+                    # 尝试修复常见的JSON错误
+                    fixed_json = json_str.replace("'", '"')  # 替换单引号为双引号
+                    fixed_json = re.sub(r',\s*\]', ']', fixed_json)  # 移除数组末尾多余的逗号
+                    fixed_json = re.sub(r'(\w+):', r'"\1":', fixed_json)  # 给属性名添加引号
+
+                    try:
+                        knowledge_points = json.loads(fixed_json)
+                        logger.info("JSON修复成功!")
+                        # 执行相同的后处理
+                        for point in knowledge_points:
+                            point["concept"] = self._fix_concept(point["concept"])
+                            point["definition"] = self._clean_text(point["definition"])
+                            point["page"] = page_number
+                            if "importance" not in point or not isinstance(point["importance"], int):
+                                point["importance"] = 3
+                            if "difficulty" not in point or not isinstance(point["difficulty"], int):
+                                point["difficulty"] = 3
+                        return knowledge_points
+                    except:
+                        logger.error("JSON修复失败，返回空列表")
+                        return []
+
+            except Exception as e:
+                logger.error(f"处理JSON时出错: {e}")
+                return []
 
         except Exception as e:
             logger.error(f"提取知识点时出错: {e}")
-            # 即使出错也返回空列表而不是抛出异常
-            return []
-
-
-        except Exception as e:
-            logger.error(f"提取知识点时出错: {e}")
-            print(f"提取知识点时出错: {e}")
             return []
 
     def extract_with_vocabulary(self, page_text, page_number, vocabulary, temperature=0.1):
-        """使用词汇表辅助提取知识点"""
+        """使用词汇表定向提取知识点"""
         extracted_points = []
 
-        for concept in vocabulary:
-            # 检查概念是否出现在文本中
-            if concept.lower() in page_text.lower():
-                # 构建针对性提示词
-                prompt = f"""
-    在教材的第{page_number}页中提到了"{concept}"这个概念。
-    请从以下文本中提取出这个概念的准确定义，只返回定义内容，不要有任何其他文字：
+        # 过滤出出现在文本中的词汇
+        found_terms = []
+        for term in vocabulary:
+            if term.lower() in page_text.lower():
+                found_terms.append(term)
 
-    {page_text}
-    """
-                definition = self._generate_text(prompt, temperature=temperature)
+        if not found_terms:
+            return []  # 没有找到任何词汇
 
-                if definition and len(definition) > 10:  # 简单的有效性检查
-                    extracted_points.append({
-                        "concept": concept,
-                        "definition": definition,
-                        "page": page_number,
-                        "importance": 4,  # 默认值
-                        "difficulty": 3  # 默认值
-                    })
+        # 批量处理找到的词汇
+        batch_size = 5  # 每次处理5个词汇
+        for i in range(0, len(found_terms), batch_size):
+            batch_terms = found_terms[i:i+batch_size]
+            terms_str = ", ".join([f'"{t}"' for t in batch_terms])
+
+            # 构建针对性提示词
+            prompt = f"""
+在教材的第{page_number}页中提到了以下概念: {terms_str}
+
+请从以下文本中提取这些概念的准确定义，只返回JSON格式，不要有任何其他文字：
+
+{page_text[:3000]}  # 限制文本长度
+
+返回格式:
+[
+  {{
+    "concept": "概念名称",
+    "definition": "概念的精确定义",
+    "page": {page_number},
+    "importance": 4,
+    "difficulty": 3
+  }}
+]
+"""
+            # 使用低温度参数提高精确度
+            response = self._generate_text(prompt, temperature=temperature)
+
+            # 提取JSON
+            try:
+                json_match = re.search(r'\[\s*\{.*?\}\s*\]', response, re.DOTALL)
+                if json_match:
+                    batch_points = json.loads(json_match.group(0))
+                    # 执行后处理
+                    for point in batch_points:
+                        point["concept"] = self._fix_concept(point["concept"])
+                        point["definition"] = self._clean_text(point["definition"])
+                        point["page"] = page_number
+                        if "importance" not in point or not isinstance(point["importance"], int):
+                            point["importance"] = 3
+                        if "difficulty" not in point or not isinstance(point["difficulty"], int):
+                            point["difficulty"] = 3
+                    extracted_points.extend(batch_points)
+            except:
+                pass
 
         return extracted_points
-
-    def load_domain_vocabulary(self, domain):
-        """加载指定领域的词汇表"""
-        if not domain or domain in ["未知领域", "其他"]:
-            return []
-
-        # 将域名映射到文件名
-        domain_file_mapping = {
-            "计算机科学": "计算机科学_concepts.txt",
-            "数学": "数学_concepts.txt",
-            "物理": "物理学_concepts.txt",
-            "化学": "化学_concepts.txt",
-            "生物": "生物学_concepts.txt",
-            "医学": "医学_concepts.txt",
-            "经济学": "经济学_concepts.txt",
-            "心理学": "心理学_concepts.txt",
-            "语言学": "语言学_concepts.txt",
-            "哲学": "哲学_concepts.txt"
-            # 可以添加更多映射
-        }
-
-        # 尝试找到最匹配的域名文件
-        file_name = None
-        for key, value in domain_file_mapping.items():
-            if key in domain:
-                file_name = value
-                break
-
-        if not file_name:
-            # 尝试直接匹配
-            for value in domain_file_mapping.values():
-                if domain in value:
-                    file_name = value
-                    break
-
-        if not file_name:
-            logger.warning(f"未找到域名 {domain} 对应的词汇表文件")
-            return []
-
-        # 读取词汇表
-        vocab_path = f"config/domains/{file_name}"
-        try:
-            if os.path.exists(vocab_path):
-                with open(vocab_path, 'r', encoding='utf-8') as f:
-                    vocabulary = [line.strip() for line in f if line.strip()]
-                logger.info(f"加载了 {len(vocabulary)} 个 {domain} 领域的概念词汇")
-                return vocabulary
-            else:
-                logger.warning(f"词汇表文件不存在: {vocab_path}")
-                return []
-        except Exception as e:
-            logger.error(f"加载词汇表时出错: {e}")
-            return []
-
-    def _preprocess_text(self, text):
-        """预处理文本，移除无关内容"""
-        # 移除页眉页脚
-        text = re.sub(r'\d+\s*第\s*\d+\s*章.*?\n', '', text)
-        text = re.sub(r'.*?第\s*\d+\s*页.*?\n', '', text)
-
-        # 清理多余空白
-        text = re.sub(r'\s+', ' ', text)
-
-        return text.strip()
 
     def _extract_json_from_response(self, response, page_number):
         """从响应中提取JSON数据"""
@@ -779,70 +451,302 @@ class LLMKnowledgeExtractor:
             logger.error(f"解析JSON时出错: {e}")
             return []
 
-    def _extract_knowledge_fallback(self, page_text, page_number, domain=None):
-        """备选知识点提取方法"""
-        # 尝试直接提取概念-定义对
-        prompt = f"""
-    请从以下文本中直接提取出关键的专业概念及其定义，只关注那些明确包含定义的术语。
-    例如："词法分析是指将源程序分解成一个个单词符号的过程"，这里"词法分析"就是概念，后面是其定义。
+    def _clean_text(self, text):
+        """清理文本，移除多余的空格和换行"""
+        if not text:
+            return ""
+        # 替换多个空格为一个空格
+        text = re.sub(r'\s+', ' ', text)
+        # 修正常见OCR错误
+        for error, fix in self.ocr_fixes.items():
+            text = text.replace(error, fix)
+        return text.strip()
 
-    请逐行检查文本，找出所有符合这种模式的概念：
-    1. 概念后面跟着"是"、"指"、"表示"、"定义为"等词语
-    2. 概念在文本中用粗体或斜体标出
-    3. 概念后面有冒号后跟着解释
+    def _fix_concept(self, concept):
+        """修正概念名称中的常见错误"""
+        if not concept:
+            return ""
 
-    请只输出JSON格式，每个概念包括名称、定义、重要性和难度评分：
+        # 清理空格和标点
+        concept = re.sub(r'\s+', ' ', concept).strip()
+        concept = re.sub(r'[,\.;:，。；：]$', '', concept)
 
-    [
-      {{
-        "concept": "提取出的概念名称",
-        "definition": "提取出的完整定义",
-        "page": {page_number},
-        "importance": 4,
-        "difficulty": 3
-      }}
-    ]
+        # 修正OCR错误
+        for error, fix in self.ocr_fixes.items():
+            concept = concept.replace(error, fix)
 
-    文本内容:
-    {page_text}
-    """
+        return concept
 
-        # 使用极低的温度确保确定性输出
-        response = self._generate_text(prompt, temperature=0.1)
-        return self._extract_json_from_response(response, page_number)
+    def extract_with_adaptive_strategy(self, page_text, page_number, domain=None):
+        """使用自适应策略提取知识点"""
+        # 1. 尝试常规提取
+        regular_points = self.extract_knowledge_from_page(page_text, page_number, domain)
 
-    def correct_ocr_text(self, ocr_text, page_number=None):
+        # 如果提取结果不理想，尝试其他策略
+        if not regular_points or len(regular_points) < 2:
+            logger.info(f"第 {page_number} 页常规提取结果不理想，尝试其他策略")
+
+            # 2. 尝试使用领域词汇表（如果有）
+            vocabulary_points = []
+            if domain:
+                vocab_path = f"config/domains/{domain}_concepts.txt"
+                if os.path.exists(vocab_path):
+                    try:
+                        with open(vocab_path, 'r', encoding='utf-8') as f:
+                            vocabulary = [line.strip() for line in f if line.strip()]
+
+                        vocabulary_points = self.extract_with_vocabulary(
+                            page_text, page_number, vocabulary, temperature=0.3)
+                        logger.info(f"使用词汇表提取了 {len(vocabulary_points)} 个知识点")
+                    except Exception as e:
+                        logger.error(f"使用词汇表提取时出错: {e}")
+
+            # 3. 尝试段落分解提取
+            paragraph_points = []
+            paragraphs = re.split(r'\n\s*\n', page_text)
+            meaningful_paragraphs = [p for p in paragraphs if len(p.strip()) > 150]
+
+            if len(meaningful_paragraphs) > 1:
+                logger.info(f"尝试段落分解提取，共 {len(meaningful_paragraphs)} 个段落")
+
+                for i, para in enumerate(meaningful_paragraphs[:3]):  # 只处理前3个段落
+                    para_prompt = f"""
+从以下第{page_number}页的段落中提取关键概念及定义：
+
+{para}
+
+只返回JSON格式：
+[
+  {{
+    "concept": "概念名称",
+    "definition": "概念定义",
+    "page": {page_number},
+    "importance": 4,
+    "difficulty": 3
+  }}
+]
+"""
+                    response = self._generate_text(para_prompt, temperature=0.4)
+                    try:
+                        # 提取JSON并解析
+                        json_match = re.search(r'\[\s*\{.*?\}\s*\]', response, re.DOTALL)
+                        if json_match:
+                            points = json.loads(json_match.group(0))
+                            # 执行后处理
+                            for point in points:
+                                point["concept"] = self._fix_concept(point["concept"])
+                                point["definition"] = self._clean_text(point["definition"])
+                                point["page"] = page_number
+                                if "importance" not in point or not isinstance(point["importance"], int):
+                                    point["importance"] = 3
+                                if "difficulty" not in point or not isinstance(point["difficulty"], int):
+                                    point["difficulty"] = 3
+                            paragraph_points.extend(points)
+                    except:
+                        pass
+
+                logger.info(f"段落分解提取了 {len(paragraph_points)} 个知识点")
+
+            # 合并所有结果
+            all_points = regular_points + vocabulary_points + paragraph_points
+            return all_points
+
+        return regular_points
+
+    def extract_relationships_from_knowledge(self, knowledge_points):
         """
-        修正OCR识别过程中产生的错误
-
-        参数:
-            ocr_text: OCR识别的原始文本
-            page_number: 页码，用于日志记录
-
-        返回:
-            修正后的文本
+        从知识点中提取关系
         """
-        # 如果文本太短，直接返回
-        if len(ocr_text) < 200:
-            return ocr_text
+        # 首先提示模型生成一些通用关系
+        relationships = self._generate_relationships_with_model(knowledge_points)
 
-        # 构建提示词
+        # 然后从定义中提取隐含关系
+        definition_relationships = self._extract_relationships_from_definitions(knowledge_points)
+
+        # 合并关系列表
+        relationships.extend(definition_relationships)
+
+        # 去重
+        unique_relationships = []
+        seen = set()
+        for rel in relationships:
+            key = (rel['source'], rel['target'], rel['relation'])
+            if key not in seen:
+                seen.add(key)
+                unique_relationships.append(rel)
+
+        logger.info(f"从知识点中提取了 {len(unique_relationships)} 个关系")
+        return unique_relationships
+
+    def _generate_relationships_with_model(self, knowledge_points, max_concepts=25):
+        """使用模型生成概念间的关系"""
+        relationships = []
+
+        # 如果知识点太多，只使用前max_concepts个
+        if len(knowledge_points) > max_concepts:
+            # 优先选择重要性高的概念
+            sorted_points = sorted(knowledge_points, key=lambda x: x.get('importance', 3), reverse=True)
+            selected_points = sorted_points[:max_concepts]
+        else:
+            selected_points = knowledge_points
+
+        concepts = [kp["concept"] for kp in selected_points]
+        if not concepts:
+            return []
+
+        concepts_str = ", ".join([f'"{c}"' for c in concepts])
+
         prompt = f"""
-    请修正以下OCR识别的文本中的错误。这是一本编译原理教材的第{page_number}页。
-    请保留原文的结构和格式，只修正明显的错别字、乱码和不通顺的句子。
-    不要添加额外内容，不要解释你的修改。
-    只需返回修正后的完整文本:
+分析以下概念之间的关系，并返回JSON格式的关系列表:
+概念: {concepts_str}
 
-    {ocr_text}
-    """
+请返回这些概念之间可能存在的关系，格式如下:
+[
+  {{
+    "source": "源概念",
+    "target": "目标概念",
+    "relation": "关系类型",
+    "strength": 0.8
+  }}
+]
 
-        # 生成修正后的文本
-        corrected_text = self._generate_text(prompt, temperature=0.1)
+关系类型包括:
+- INCLUDES: 包含关系
+- IS_PART_OF: 是...的一部分
+- IS_PREREQUISITE_OF: 是...的前提
+- IS_RELATED_TO: 与...相关
+- REFERS_TO: 引用了
+- SIMILAR_TO: 与...相似
 
-        # 简单检查修正是否合理
-        # if len(corrected_text) < len(ocr_text) * 0.5 or len(corrected_text) > len(ocr_text) * 1.5:
-        #     logger.warning(f"文本修正结果长度异常，使用原始文本")
-        #     return ocr_text
+请确保源概念和目标概念是概念列表中的概念，关系强度在0-1之间。
+"""
 
-        logger.info(f"已修正第{page_number}页文本")
-        return corrected_text
+        response = self._generate_text(prompt, temperature=0.4)
+
+        # 提取JSON
+        try:
+            json_match = re.search(r'\[\s*\{.*\}\s*\]', response, re.DOTALL)
+            if json_match:
+                json_str = json_match.group(0)
+                # 修复常见的JSON错误
+                json_str = json_str.replace("'", '"')  # 替换单引号为双引号
+                json_str = re.sub(r',\s*\]', ']', json_str)  # 移除数组末尾多余的逗号
+
+                try:
+                    rels = json.loads(json_str)
+                    # 验证关系
+                    valid_rels = []
+                    for rel in rels:
+                        if all(k in rel for k in ["source", "target", "relation", "strength"]):
+                            # 确保概念存在于知识点中
+                            if rel["source"] in concepts and rel["target"] in concepts:
+                                valid_rels.append(rel)
+
+                    relationships.extend(valid_rels)
+                except:
+                    pass
+            else:
+                logger.warning("无法从关系生成响应中提取JSON")
+        except Exception as e:
+            logger.error(f"解析关系JSON时出错: {e}")
+
+        return relationships
+
+    def _extract_relationships_from_definitions(self, knowledge_points):
+        """从定义中提取隐含关系"""
+        relationships = []
+        concept_to_point = {kp["concept"]: kp for kp in knowledge_points}
+
+        for kp1 in knowledge_points:
+            concept1 = kp1["concept"]
+            definition1 = kp1.get("definition", "")
+
+            for concept2 in concept_to_point:
+                # 避免自我关系
+                if concept1 == concept2:
+                    continue
+
+                # 检查概念2是否出现在概念1的定义中
+                if concept2 in definition1 and len(concept2) > 2:
+                    # 添加引用关系
+                    relationships.append({
+                        "source": concept1,
+                        "target": concept2,
+                        "relation": "REFERS_TO",
+                        "strength": 0.7
+                    })
+
+                # 检查概念包含关系
+                if len(concept2) > 3 and concept2 in concept1 and concept2 != concept1:
+                    relationships.append({
+                        "source": concept1,
+                        "target": concept2,
+                        "relation": "INCLUDES",
+                        "strength": 0.8
+                    })
+
+                # 检查概念的前提关系
+                kp2 = concept_to_point[concept2]
+                if kp1.get("page", 0) > kp2.get("page", 0) and kp2.get("importance", 0) >= 4:
+                    # 后面页码出现的概念可能依赖前面的重要概念
+                    relationships.append({
+                        "source": concept2,
+                        "target": concept1,
+                        "relation": "IS_PREREQUISITE_OF",
+                        "strength": 0.6
+                    })
+
+        return relationships
+
+    def create_knowledge_graph(self, knowledge_points, relationships, output_path):
+        """
+        创建知识图谱并保存为JSON
+        """
+        try:
+            # 创建节点
+            nodes = []
+            for kp in knowledge_points:
+                node = {
+                    "id": kp["concept"],
+                    "name": kp["concept"],
+                    "type": "Concept",
+                    "definition": kp.get("definition", ""),
+                    "chapter": kp.get("chapter", ""),
+                    "importance": kp.get("importance", 3),
+                    "difficulty": kp.get("difficulty", 3),
+                    "page": kp.get("page", 1)
+                }
+                nodes.append(node)
+
+            # 创建链接
+            links = []
+            for rel in relationships:
+                link = {
+                    "source": rel["source"],
+                    "target": rel["target"],
+                    "type": rel["relation"],
+                    "strength": rel.get("strength", 0.5)
+                }
+                links.append(link)
+
+            # 创建知识图谱
+            graph = {
+                "nodes": nodes,
+                "links": links
+            }
+
+            # 确保输出目录存在
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+            # 保存到文件
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(graph, f, ensure_ascii=False, indent=2)
+
+            logger.info(f"知识图谱已保存到: {output_path}")
+            logger.info(f"包含 {len(nodes)} 个节点和 {len(links)} 个链接")
+
+            return True
+
+        except Exception as e:
+            logger.error(f"创建知识图谱时出错: {e}")
+            return False

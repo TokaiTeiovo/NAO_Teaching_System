@@ -165,7 +165,7 @@ class OCRPDFExtractor:
 
         return text
 
-    def extract_text_by_pages(self, start_page=0, end_page=None, dpi=450):
+    def extract_text_by_pages(self, start_page=0, end_page=None, dpi=600):
         """
         按页面提取PDF文本
 

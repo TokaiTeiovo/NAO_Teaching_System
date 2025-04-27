@@ -20,7 +20,7 @@
 
 ### 1. 启动脚本
 
-#### `python ocr_llm_extraction.py --pdf "陈火旺+《程序设计语言编译原理》第三版.pdf" --output output/knowledge_graph.json --ocr_lang ch_sim,en --model "models/deepseek-llm-7b-chat" --use_gpu --batch_size 50`
+#### `python ocr_llm_extraction.py --pdf "陈火旺+《程序设计语言编译原理》第三版.pdf" --output output/knowledge_graph.json --ocr_lang ch_sim,en --use_gpu --batch_size 50`
 
 #### `python direct_extract_knowledge.py --json_file temp/all_ocr_text.json --output output/knowledge_graph.json --model "models/deepseek-llm-7b-chat" --use_gpu --retry`
 `
