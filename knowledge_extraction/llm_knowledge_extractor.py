@@ -224,50 +224,28 @@ class LLMKnowledgeExtractor:
                 logger.info(f"第 {page_number} 页文本质量可能不佳，使用低温度参数")
                 temperature = 0.3  # 降低温度参数提高精确度
 
-            # 构建提示词
-            if domain:
-                prompt = f"""
-        你是一名{domain}领域的专家。请仔细分析下面的教材第{page_number}页文本，提取所有关键概念及其精确定义。
+            prompt = f"""
+                你是一名{domain}专家。请从下面的教材第{page_number}页文本中提取关键概念及其定义。
+                请严格按照以下JSON格式输出提取的知识点，每个字段名必须用双引号包围：
 
-        请注意:
-        1. 提取所有重要的专业术语和概念
-        2. 为每个概念提供其在文本中的准确定义
-        3. 修正任何明显的识别错误
-        4. 确保每个定义与对应的概念匹配，不混淆不同概念
+                [
+                  {{
+                    "concept": "概念名称",
+                    "definition": "概念定义",
+                    "page": {page_number},
+                    "importance": 4,
+                    "difficulty": 3
+                  }}
+                ]
 
-        请严格按照以下JSON格式返回结果，不要添加任何额外文字:
-        [
-          {{
-            "concept": "概念名称",
-            "definition": "该概念的精确定义",
-            "page": {page_number},
-            "importance": 1-5的整数（表示概念重要性）,
-            "difficulty": 1-5的整数（表示概念难度）
-          }}
-        ]
-        """
-            else:
-                # 通用提示词
-                prompt = f"""
-            你是一名专业知识提取专家。请从下面的教材第{page_number}页文本中提取所有关键概念及其精确定义。
+                重要提示：
+                1. 你的回答必须只包含JSON数组，不要有任何额外的解释文字
+                2. 每个字段名（concept、definition、page等）必须用双引号包围
+                3. 字段值如果是字符串，也必须用双引号包围
+                4. 如果找不到知识点，返回空数组 []
+                5. JSON必须格式完全正确，没有任何语法错误
+                """
 
-            请注意:
-            1. 找出所有独特的专业术语和概念
-            2. 确保每个概念有其准确的定义，不要重复定义
-            3. 避免错误的识别结果（如"属性文祛"应为"属性文法"）
-            4. 确保每个定义与其对应的概念匹配
-
-            请严格按照以下JSON格式返回结果，不要添加任何额外文字:
-            [
-              {{
-                "concept": "概念名称",
-                "definition": "该概念的精确定义",
-                "page": {page_number},
-                "importance": 1-5的整数（表示概念重要性）,
-                "difficulty": 1-5的整数（表示概念难度）
-              }}
-            ]
-            """
             # 由于模型的上下文长度限制，我们需要限制输入文本的长度
             max_text_length = 4000  # 根据您的模型调整这个值
             if len(page_text) > max_text_length:
@@ -317,6 +295,14 @@ class LLMKnowledgeExtractor:
                     fixed_json = json_str.replace("'", '"')  # 替换单引号为双引号
                     fixed_json = re.sub(r',\s*\]', ']', fixed_json)  # 移除数组末尾多余的逗号
                     fixed_json = re.sub(r'(\w+):', r'"\1":', fixed_json)  # 给属性名添加引号
+                    fixed_json = re.sub(r':\s*"([^"]*)"([^,\]}])', r':"\1\2"', fixed_json)  # 修复未闭合的引号
+                    fixed_json = re.sub(r'}"?(\s*{)', r'},\1', fixed_json)  # 在对象之间添加逗号
+
+                    # 确保整个结构是一个数组
+                    if not fixed_json.strip().startswith('['):
+                        fixed_json = '[' + fixed_json
+                    if not fixed_json.strip().endswith(']'):
+                        fixed_json = fixed_json + ']'
 
                     try:
                         knowledge_points = json.loads(fixed_json)
