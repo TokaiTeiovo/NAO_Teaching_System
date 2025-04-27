@@ -55,7 +55,12 @@ class OCRPDFExtractor:
             logger.info(f"GPU加速: {'可用' if gpu else '不可用'}")
             #print(f"GPU加速: {'可用' if gpu else '不可用'}")
 
-            self.reader = easyocr.Reader(self.lang_list, gpu=gpu)
+            self.reader = easyocr.Reader(
+                self.lang_list,
+                gpu=gpu,
+                quantize=False,
+                recognizer=True
+            )
             logger.info(f"EasyOCR初始化成功，支持语言: {self.lang_list}")
             #print(f"EasyOCR初始化成功，支持语言: {self.lang_list}")
         except Exception as e:
@@ -90,6 +95,7 @@ class OCRPDFExtractor:
                 first_page=start_page + 1,  # pdf2image页码从1开始
                 last_page=end_page
             )
+
 
             logger.info(f"成功转换 {len(pages)} 页PDF为图像")
             #print(f"成功转换 {len(pages)} 页PDF为图像，开始OCR处理...")
