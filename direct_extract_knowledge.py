@@ -1,3 +1,4 @@
+# direct_extract_knowledge.py
 # -*- coding: utf-8 -*-
 
 import argparse
@@ -6,7 +7,6 @@ import json
 import logging
 import os
 import re
-from collections import defaultdict
 from difflib import SequenceMatcher
 
 from tqdm import tqdm
@@ -15,7 +15,6 @@ from ai_server.utils.logger import setup_logger
 from knowledge_extraction.llm_knowledge_extractor import LLMKnowledgeExtractor
 
 # 设置日志
-#logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = setup_logger('direct_knowledge_extraction')
 
 # 创建一个特殊的 tqdm 类，避免与日志冲突
@@ -41,7 +40,6 @@ class TqdmToLogger(io.StringIO):
 
 # 然后使用这个类替代标准 tqdm
 tqdm_out = TqdmToLogger(logger)
-
 
 def main():
     parser = argparse.ArgumentParser(description="从OCR处理后的文本直接提取知识图谱")
@@ -158,36 +156,17 @@ def main():
     final_knowledge_points = clean_knowledge_points(all_knowledge_points)
     logger.info(f"清理前: {len(all_knowledge_points)} 个知识点, 清理后: {len(final_knowledge_points)} 个知识点")
 
+    # 处理书籍特有的结构信息
+    additional_structure_relationships = process_textbook_structure(final_knowledge_points, args.json_file)
+    logger.info(f"从书籍结构中提取了 {len(additional_structure_relationships)} 个额外关系")
+
     # 提取概念关系
     logger.info("提取概念间的关系")
     relationships = llm_extractor.extract_relationships_from_knowledge(final_knowledge_points)
 
-    # 在提取关系之前添加基于共现和定义引用的关系推断
-    logger.info("添加基于共现和定义引用的关系...")
-    additional_relationships = []
-
-    # 将概念按页码分组
-    concepts_by_page = defaultdict(list)
-    for point in final_knowledge_points:
-        concepts_by_page[point.get("page", 0)].append(point["concept"])
-
-    # 基于共现推断关系
-    for page, concepts in concepts_by_page.items():
-        if len(concepts) > 1:
-            # 同页面的概念可能存在关系
-            for i in range(len(concepts)):
-                for j in range(i + 1, len(concepts)):
-                    # 默认关系类型为相关
-                    additional_relationships.append({
-                        "source": concepts[i],
-                        "target": concepts[j],
-                        "relation": "IS_RELATED_TO",
-                        "strength": 0.5
-                    })
-
     # 合并关系，避免重复
     relationship_dict = {}
-    for rel in relationships + additional_relationships:
+    for rel in relationships + additional_structure_relationships:
         key = (rel["source"], rel["target"], rel["relation"])
         if key not in relationship_dict or relationship_dict[key]["strength"] < rel["strength"]:
             relationship_dict[key] = rel
@@ -211,6 +190,162 @@ def main():
 
     logger.info(f"\n知识图谱已保存至: {args.output}")
     logger.info(f"包含 {len(final_knowledge_points)} 个知识点和 {len(merged_relationships)} 个关系")
+
+def process_textbook_structure(knowledge_points, json_file):
+    """
+    处理教材特有的结构，增强知识点关系
+
+    参数:
+        knowledge_points: 已提取的知识点列表
+        json_file: OCR结果JSON文件路径
+
+    返回:
+        额外的关系列表
+    """
+    additional_relationships = []
+
+    # 尝试加载书籍结构文件
+    structure_file = "temp/book_structure.json"
+    if os.path.exists(structure_file):
+        try:
+            with open(structure_file, 'r', encoding='utf-8') as f:
+                book_structure = json.load(f)
+
+            # 从结构中提取章节关系
+            chapters = book_structure.get("chapters", {})
+            sections = book_structure.get("sections", {})
+
+            # 1. 添加章节之间的顺序关系
+            chapter_numbers = sorted([int(ch) for ch in chapters.keys()])
+            for i in range(len(chapter_numbers) - 1):
+                curr_ch = str(chapter_numbers[i])
+                next_ch = str(chapter_numbers[i + 1])
+
+                # 章节间顺序关系
+                relationship = {
+                    "source": f"第{curr_ch}章 {chapters[curr_ch]['title']}",
+                    "target": f"第{next_ch}章 {chapters[next_ch]['title']}",
+                    "relation": "IS_PREREQUISITE_OF",
+                    "strength": 0.9
+                }
+                additional_relationships.append(relationship)
+
+            # 2. 添加章节与小节的包含关系
+            for section_key, section_info in sections.items():
+                ch_num = section_info["chapter"]
+                if ch_num in chapters:
+                    # 章节包含小节关系
+                    relationship = {
+                        "source": f"第{ch_num}章 {chapters[ch_num]['title']}",
+                        "target": f"{section_key} {section_info['title']}",
+                        "relation": "INCLUDES",
+                        "strength": 0.95
+                    }
+                    additional_relationships.append(relationship)
+
+            # 3. 添加小节之间的顺序关系
+            section_by_chapter = {}
+            for section_key, section_info in sections.items():
+                ch_num = section_info["chapter"]
+                if ch_num not in section_by_chapter:
+                    section_by_chapter[ch_num] = []
+                section_by_chapter[ch_num].append((section_key, section_info))
+
+            for ch_num, ch_sections in section_by_chapter.items():
+                # 按小节编号排序
+                ch_sections.sort(key=lambda x: float(x[0]))
+                for i in range(len(ch_sections) - 1):
+                    curr_section = ch_sections[i]
+                    next_section = ch_sections[i + 1]
+
+                    # 小节间顺序关系
+                    relationship = {
+                        "source": f"{curr_section[0]} {curr_section[1]['title']}",
+                        "target": f"{next_section[0]} {next_section[1]['title']}",
+                        "relation": "IS_PREREQUISITE_OF",
+                        "strength": 0.85
+                    }
+                    additional_relationships.append(relationship)
+
+            logger.info(f"从书籍结构中提取了 {len(additional_relationships)} 个额外关系")
+
+        except Exception as e:
+            logger.error(f"处理书籍结构时出错: {e}")
+
+    # 从知识点内容中提取额外关系
+    concept_definitions = {}
+    for point in knowledge_points:
+        concept = point.get("concept", "")
+        definition = point.get("definition", "")
+        if concept and definition:
+            concept_definitions[concept] = definition
+
+    # 4. 分析定义中的概念引用
+    for concept, definition in concept_definitions.items():
+        for other_concept in concept_definitions.keys():
+            # 避免自引用，并确保概念不是较短的通用词汇 (至少3个字符)
+            if concept != other_concept and len(other_concept) > 3 and other_concept in definition:
+                # 定义中引用关系
+                relationship = {
+                    "source": concept,
+                    "target": other_concept,
+                    "relation": "REFERS_TO",
+                    "strength": 0.7
+                }
+                additional_relationships.append(relationship)
+
+    # 5. 针对C语言教材，检测编程概念的联系
+    programming_concepts = [
+        "变量", "常量", "函数", "数组", "指针", "结构体", "循环", "条件语句",
+        "运算符", "表达式", "数据类型", "作用域", "参数", "返回值", "递归",
+        "头文件", "宏", "预处理", "字符串", "内存分配", "文件操作"
+    ]
+
+    # 找出已提取的编程概念
+    programming_points = {}
+    for point in knowledge_points:
+        concept = point.get("concept", "")
+        for prog_concept in programming_concepts:
+            if prog_concept in concept:
+                programming_points[concept] = point
+                break
+
+    # 关联编程概念之间的关系
+    prog_relations = [
+        ("变量", "数据类型", "IS_RELATED_TO"),
+        ("函数", "参数", "INCLUDES"),
+        ("函数", "返回值", "INCLUDES"),
+        ("数组", "指针", "IS_RELATED_TO"),
+        ("结构体", "数据类型", "IS_A"),
+        ("循环", "条件语句", "IS_RELATED_TO"),
+        ("指针", "内存分配", "IS_RELATED_TO"),
+        ("函数", "递归", "IS_RELATED_TO")
+    ]
+
+    for prog_concept1, prog_concept2, relation_type in prog_relations:
+        matched_concept1 = []
+        matched_concept2 = []
+
+        # 找到匹配的概念
+        for concept in programming_points.keys():
+            if prog_concept1 in concept:
+                matched_concept1.append(concept)
+            if prog_concept2 in concept:
+                matched_concept2.append(concept)
+
+        # 添加关系
+        for concept1 in matched_concept1:
+            for concept2 in matched_concept2:
+                if concept1 != concept2:
+                    relationship = {
+                        "source": concept1,
+                        "target": concept2,
+                        "relation": relation_type,
+                        "strength": 0.75
+                    }
+                    additional_relationships.append(relationship)
+
+    return additional_relationships
 
 def detect_domain(llm_extractor, sample_text):
     """
