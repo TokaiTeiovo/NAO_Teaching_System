@@ -313,7 +313,7 @@ class OCRPDFExtractor:
     #         print(f"按页面提取PDF文本时出错: {e}")
     #         return {}
 
-    def extract_text_by_pages(self, start_page=0, end_page=None, dpi=600):
+    def extract_text_by_pages(self, start_page=0, end_page=None, dpi=300):
         """
         按页面提取PDF文本，优化代码和公式识别
 
