@@ -89,6 +89,7 @@ def main():
             logger.info(f"检测到文档领域: {detected_domain}")
             domain = detected_domain
         else:
+            logger.info(f"未能自动检测领域，使用指定领域: {args.domain}")
             domain = args.domain
 
     # 按页处理文本提取知识点
@@ -99,9 +100,11 @@ def main():
     page_nums = sorted([int(pn) for pn in all_page_texts.keys()])
 
     # 限制处理页数
+    if args.start_page > 0:
+        page_nums = [pn for pn in page_nums if pn >= args.start_page]
+
     if args.max_pages:
-        end_page = min(args.start_page + args.max_pages, len(page_nums))
-        page_nums = page_nums[args.start_page:end_page]
+        page_nums = page_nums[:args.max_pages]
 
     logger.info(f"将处理 {len(page_nums)} 页，从第 {page_nums[0] + 1} 页到第 {page_nums[-1] + 1} 页")
 
@@ -114,16 +117,25 @@ def main():
             logger.info(f"跳过第 {page_num + 1} 页 (内容不足)")
             continue
 
-        # 使用自适应策略提取
-        knowledge_points = llm_extractor.extract_with_adaptive_strategy(
-            page_text, page_num + 1, domain)
+        try:
+            # 先尝试直接使用低温度参数提取
+            knowledge_points = llm_extractor.extract_knowledge_from_page(
+                page_text, page_num + 1, domain, temperature=0.2)
 
-        if knowledge_points:
-            all_knowledge_points.extend(knowledge_points)
-            logger.info(f"从第 {page_num + 1} 页提取了 {len(knowledge_points)} 个知识点")
-        else:
+            # 如果直接提取失败，使用自适应策略提取
+            if not knowledge_points:
+                knowledge_points = llm_extractor.extract_with_adaptive_strategy(
+                    page_text, page_num + 1, domain)
+
+            if knowledge_points:
+                all_knowledge_points.extend(knowledge_points)
+                logger.info(f"从第 {page_num + 1} 页提取了 {len(knowledge_points)} 个知识点")
+            else:
+                failed_pages.append(page_num)
+                logger.info(f"未能从第 {page_num + 1} 页提取知识点")
+        except Exception as e:
+            logger.error(f"处理第 {page_num + 1} 页时发生异常: {str(e)}")
             failed_pages.append(page_num)
-            logger.info(f"未能从第 {page_num + 1} 页提取知识点")
 
         # 每batch_size页保存一次中间结果
         if (page_nums.index(page_num) + 1) % args.batch_size == 0:
@@ -144,13 +156,47 @@ def main():
         for page_num in tqdm(failed_pages, desc="重试提取"):
             page_text = all_page_texts.get(str(page_num), "")
 
-            # 使用不同的温度参数
-            retried_points = llm_extractor.extract_knowledge_from_page(
-                page_text, page_num + 1, domain, temperature=args.retry_temp)
+            try:
+                # 使用不同的温度参数
+                retried_points = llm_extractor.extract_knowledge_from_page(
+                    page_text, page_num + 1, domain, temperature=args.retry_temp)
 
-            if retried_points:
-                all_knowledge_points.extend(retried_points)
-                logger.info(f"重试成功: 从第 {page_num + 1} 页提取了 {len(retried_points)} 个知识点")
+                if not retried_points:
+                    # 尝试基于关键词和模式的提取
+                    pattern_points = extract_by_patterns(page_text, page_num + 1)
+                    if pattern_points:
+                        all_knowledge_points.extend(pattern_points)
+                        logger.info(f"模式匹配成功: 从第 {page_num + 1} 页提取了 {len(pattern_points)} 个知识点")
+                else:
+                    all_knowledge_points.extend(retried_points)
+                    logger.info(f"重试成功: 从第 {page_num + 1} 页提取了 {len(retried_points)} 个知识点")
+            except Exception as e:
+                logger.error(f"重试处理第 {page_num + 1} 页时发生异常: {str(e)}")
+
+    # 如果仍有失败页面，尝试分段处理
+    remaining_failed = [p for p in failed_pages if
+                        not any(point.get('page') == p + 1 for point in all_knowledge_points)]
+    if remaining_failed and args.retry:
+        logger.info(f"使用分段处理重试剩余 {len(remaining_failed)} 个失败页面...")
+        for page_num in tqdm(remaining_failed, desc="分段重试"):
+            page_text = all_page_texts.get(str(page_num), "")
+
+            # 分割文本为较小的段落
+            paragraphs = re.split(r'\n\s*\n', page_text)
+            significant_paragraphs = [p for p in paragraphs if len(p.strip()) > 100]
+
+            for i, para in enumerate(significant_paragraphs):
+                try:
+                    # 每段单独处理
+                    para_points = llm_extractor.extract_knowledge_from_page(
+                        para, page_num + 1, domain, temperature=0.1)
+
+                    if para_points:
+                        all_knowledge_points.extend(para_points)
+                        logger.info(
+                            f"分段处理成功: 从第 {page_num + 1} 页第 {i + 1} 段提取了 {len(para_points)} 个知识点")
+                except Exception as e:
+                    logger.error(f"分段处理第 {page_num + 1} 页第 {i + 1} 段时出错: {str(e)}")
 
     # 清理和去重最终结果
     final_knowledge_points = clean_knowledge_points(all_knowledge_points)
@@ -392,6 +438,9 @@ def clean_knowledge_points(knowledge_points):
     # 第一步：规范化概念名称
     normalized_points = []
     for point in knowledge_points:
+        if not point.get("concept"):
+            continue
+
         # 去除多余空格、标点符号等
         concept = re.sub(r'\s+', ' ', point["concept"]).strip()
         concept = re.sub(r'[,\.;:，。；：]$', '', concept)
@@ -475,8 +524,7 @@ def evaluate_extraction_quality(knowledge_points):
     metrics = {
         "total_points": len(knowledge_points),
         "unique_concepts": len(set(p["concept"] for p in knowledge_points)),
-        "avg_definition_length": sum(len(p.get("definition", "")) for p in knowledge_points) / max(1,
-                                                                                                   len(knowledge_points)),
+        "avg_definition_length": sum(len(p.get("definition", "")) for p in knowledge_points) / max(1, len(knowledge_points)),
         "coverage": len(set(p.get("page", 0) for p in knowledge_points)),  # 覆盖的页面数
         "concept_density": {},  # 每页概念密度
         "possible_duplicates": [],  # 可能的重复概念
@@ -509,6 +557,40 @@ def evaluate_extraction_quality(knowledge_points):
             })
 
     return metrics
+
+def extract_by_patterns(text, page_num):
+    """使用规则和模式匹配从文本中提取知识点"""
+    knowledge_points = []
+
+    # 使用常见的定义模式匹配
+    definition_patterns = [
+        r'([^。.：:\n]{2,20})[是指表示]+(.*?)[。.；;]',  # 匹配"X是..."的定义
+        r'([^。.：:\n]{2,20})[:：](.*?)[。.；;]',  # 匹配"X: ..."的定义
+        r'([^。.：:\n]{2,20})的定义是(.*?)[。.；;]',  # 匹配"X的定义是..."
+        r'所谓([^，,]{2,20})，[是指表示]+(.*?)[。.；;]'  # 匹配"所谓X，是..."
+    ]
+
+    for pattern in definition_patterns:
+        matches = re.finditer(pattern, text)
+        for match in matches:
+            concept = match.group(1).strip()
+            definition = match.group(2).strip()
+
+            # 过滤掉不合理的概念名
+            if len(concept) < 2 or len(definition) < 5:
+                continue
+
+            # 创建知识点
+            knowledge_point = {
+                "concept": concept,
+                "definition": definition,
+                "page": page_num,
+                "importance": 3,
+                "difficulty": 3
+            }
+            knowledge_points.append(knowledge_point)
+
+    return knowledge_points
 
 if __name__ == "__main__":
     main()

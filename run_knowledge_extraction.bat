@@ -54,7 +54,7 @@ call ai_server\.venv\Scripts\activate.bat
 echo 当前Python环境: %VIRTUAL_ENV%
 
 echo 从OCR结果提取知识图谱...
-python direct_extract_knowledge.py --json_file %PROCESSED_OCR% --output %KG_OUTPUT% --model %MODEL_PATH% --use_gpu --retry --domain "计算机科学"
+python direct_extract_knowledge.py --json_file %PROCESSED_OCR% --output %KG_OUTPUT% --model %MODEL_PATH% --use_gpu --retry --domain "计算机科学" --start_page 25 --max_pages 400
 
 REM 退出ai_server虚拟环境
 call deactivate
