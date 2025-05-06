@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import os
-import pandas as pd
+
 from neo4j import GraphDatabase
 from utils.logger import setup_logger
 

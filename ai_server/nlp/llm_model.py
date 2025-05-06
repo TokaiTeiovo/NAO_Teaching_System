@@ -2,9 +2,10 @@
 # -*- coding: utf-8 -*-
 
 import os
+
 import torch
+from peft import PeftModel
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
-from peft import PeftModel, get_peft_model
 from utils.logger import setup_logger
 
 # 设置日志

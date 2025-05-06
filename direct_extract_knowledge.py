@@ -11,8 +11,8 @@ from difflib import SequenceMatcher
 
 from tqdm import tqdm
 
-from ai_server.utils.logger import setup_logger
 from knowledge_extraction.llm_knowledge_extractor import LLMKnowledgeExtractor
+from logger import setup_logger
 
 # 设置日志
 logger = setup_logger('direct_knowledge_extraction')

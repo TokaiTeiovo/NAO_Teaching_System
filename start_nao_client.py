@@ -1,10 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import os
-import sys
-import time
 import argparse
+
 from nao_control.main import main as nao_main
 
 

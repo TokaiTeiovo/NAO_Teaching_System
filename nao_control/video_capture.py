@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import time
 import numpy as np
 import vision_definitions
 from naoqi import ALProxy

@@ -1,11 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import os
-import sys
-import time
 import argparse
 import asyncio
+
 from ai_server.server import AIServer
 
 

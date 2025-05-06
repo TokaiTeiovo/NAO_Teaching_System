@@ -1,13 +1,17 @@
 # knowledge_extraction/import_to_neo4j.py
-import json
-import os
 import argparse
+import json
 import sys
-from py2neo import Graph, Node, Relationship
+
+from py2neo import Graph
 from tqdm import tqdm
 
+from logger import setup_logger
 
-def import_knowledge_graph(json_path, neo4j_uri, neo4j_user, neo4j_password, clear_db=False):
+# 创建日志记录器
+logger = setup_logger('neo4j_importer')
+
+def import_knowledge_graph(json_path, neo4j_uri="bolt://localhost:7687", neo4j_user="neo4j", neo4j_password="admin123", clear_db=False):
     """
     将JSON格式的知识图谱导入到Neo4j
 
@@ -18,49 +22,49 @@ def import_knowledge_graph(json_path, neo4j_uri, neo4j_user, neo4j_password, cle
         neo4j_password: Neo4j密码
         clear_db: 是否清空数据库
     """
-    print("正在导入知识图谱到Neo4j...")
+    logger.info("正在导入知识图谱到Neo4j...")
 
     # 连接到Neo4j
     try:
         graph = Graph(neo4j_uri, auth=(neo4j_user, neo4j_password))
-        print(f"成功连接到Neo4j数据库: {neo4j_uri}")
+        logger.info(f"成功连接到Neo4j数据库: {neo4j_uri}")
     except Exception as e:
-        print(f"连接Neo4j数据库时出错: {e}")
+        logger.error(f"连接Neo4j数据库时出错: {e}")
         return
 
     # 清空数据库（如果需要）
     if clear_db:
-        print("清空数据库...")
+        logger.info("清空数据库...")
         graph.run("MATCH (n) DETACH DELETE n")
 
     # 创建约束
     try:
-        print("创建约束...")
+        logger.info("创建约束...")
         graph.run("CREATE CONSTRAINT IF NOT EXISTS ON (c:Concept) ASSERT c.name IS UNIQUE")
         graph.run("CREATE CONSTRAINT IF NOT EXISTS ON (e:Example) ASSERT e.name IS UNIQUE")
         graph.run("CREATE CONSTRAINT IF NOT EXISTS ON (m:Misconception) ASSERT m.name IS UNIQUE")
     except Exception as e:
-        print(f"创建约束时出错: {e}")
+        logger.error(f"创建约束时出错: {e}")
         try:
             # 尝试使用旧版Neo4j语法
             graph.run("CREATE CONSTRAINT ON (c:Concept) ASSERT c.name IS UNIQUE")
             graph.run("CREATE CONSTRAINT ON (e:Example) ASSERT e.name IS UNIQUE")
             graph.run("CREATE CONSTRAINT ON (m:Misconception) ASSERT m.name IS UNIQUE")
-            print("使用旧版Neo4j语法创建约束成功")
+            logger.info("使用旧版Neo4j语法创建约束成功")
         except Exception as e2:
-            print(f"创建约束时出错(旧版语法): {e2}")
+            logger.error(f"创建约束时出错(旧版语法): {e2}")
 
     # 读取JSON文件
     try:
         with open(json_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
-        print(f"成功加载知识图谱: {json_path}")
+        logger.info(f"成功加载知识图谱: {json_path}")
     except Exception as e:
-        print(f"读取JSON文件时出错: {e}")
+        logger.error(f"读取JSON文件时出错: {e}")
         return
 
     # 导入节点
-    print("导入节点...")
+    logger.info("导入节点...")
     nodes_count = 0
     for node in tqdm(data.get("nodes", [])):
         try:
@@ -68,6 +72,10 @@ def import_knowledge_graph(json_path, neo4j_uri, neo4j_user, neo4j_password, cle
             node_id = node.get("id")
             node_name = node.get("name", node_id)
             node_type = node.get("type", "Concept")
+
+            # 跳过无效节点
+            if not node_name:
+                continue
 
             # 创建节点属性
             properties = {
@@ -100,12 +108,12 @@ def import_knowledge_graph(json_path, neo4j_uri, neo4j_user, neo4j_password, cle
 
             nodes_count += 1
         except Exception as e:
-            print(f"导入节点 {node_id} 时出错: {e}")
+            logger.error(f"导入节点 {node_id} 时出错: {e}")
 
-    print(f"成功导入 {nodes_count} 个节点")
+    logger.info(f"成功导入 {nodes_count} 个节点")
 
     # 导入关系
-    print("导入关系...")
+    logger.info("导入关系...")
     links_count = 0
     for link in tqdm(data.get("links", [])):
         try:
@@ -133,29 +141,36 @@ def import_knowledge_graph(json_path, neo4j_uri, neo4j_user, neo4j_password, cle
 
             links_count += 1
         except Exception as e:
-            print(f"导入关系 {source} -> {target} 时出错: {e}")
+            logger.error(f"导入关系 {source} -> {target} 时出错: {e}")
 
-    print(f"成功导入 {links_count} 个关系")
-    print("知识图谱导入完成！")
+    logger.info(f"成功导入 {links_count} 个关系")
+    logger.info("知识图谱导入完成！")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="将知识图谱JSON导入到Neo4j")
+    # 内置的默认参数，无需从命令行传入
+    default_json = "output/knowledge_graph.json"
+    default_uri = "bolt://localhost:7687"
+    default_user = "neo4j"
+    default_password = "admin123"  # 直接硬编码密码
+    default_clear = True  # 默认清空数据库
 
-    parser.add_argument("--json", required=True, help="知识图谱JSON文件路径")
-    parser.add_argument("--uri", default="bolt://localhost:7687", help="Neo4j数据库URI")
-    parser.add_argument("--user", default="neo4j", help="Neo4j用户名")
-    parser.add_argument("--password", required=True, help="Neo4j密码")
-    parser.add_argument("--clear", action="store_true", help="清空数据库")
+    # 命令行参数仍然保留，允许覆盖默认值
+    parser = argparse.ArgumentParser(description="将知识图谱JSON导入到Neo4j")
+    parser.add_argument("--json", default=default_json, help="知识图谱JSON文件路径")
+    parser.add_argument("--uri", default=default_uri, help="Neo4j数据库URI")
+    parser.add_argument("--user", default=default_user, help="Neo4j用户名")
+    parser.add_argument("--password", default=default_password, help="Neo4j密码")
+    parser.add_argument("--clear", action="store_true", default=default_clear, help="清空数据库")
 
     args = parser.parse_args()
 
     # 打印运行信息
-    print(f"Python版本: {sys.version}")
-    print(f"JSON文件: {args.json}")
-    print(f"Neo4j URI: {args.uri}")
-    print(f"Neo4j用户: {args.user}")
-    print(f"清空数据库: {'是' if args.clear else '否'}")
+    logger.info(f"Python版本: {sys.version}")
+    logger.info(f"JSON文件: {args.json}")
+    logger.info(f"Neo4j URI: {args.uri}")
+    logger.info(f"Neo4j用户: {args.user}")
+    logger.info(f"清空数据库: {'是' if args.clear else '否'}")
 
     # 导入知识图谱
     import_knowledge_graph(

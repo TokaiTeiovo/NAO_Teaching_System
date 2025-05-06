@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import random
-import numpy as np
+
 from utils.logger import setup_logger
 
 # 设置日志

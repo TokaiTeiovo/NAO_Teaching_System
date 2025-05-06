@@ -6,13 +6,13 @@ NAO机器人WebSocket集成示例
 将WebSocket客户端集成到NAO机器人控制程序中
 """
 
-import os
-import sys
-import time
 import argparse
+import os
+import time
+
 import numpy as np
-from naoqi import ALProxy
 from nao_websocket_client import NaoWebSocketClient
+from naoqi import ALProxy
 
 
 class NaoRobotController:

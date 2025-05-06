@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import uuid
 import time
-from utils.logger import setup_logger
+import uuid
+
+from logger import setup_logger
 
 # 设置日志
 logger = setup_logger('conversation')

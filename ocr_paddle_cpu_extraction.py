@@ -3,8 +3,8 @@ import argparse
 import json
 import os
 
-from ai_server.utils.logger import setup_logger
 from knowledge_extraction.paddle_cpu_ocr_extractor import PaddleCpuOCRExtractor
+from logger import setup_logger
 
 # 创建日志记录器
 logger = setup_logger('ocr_paddle_cpu_extraction')

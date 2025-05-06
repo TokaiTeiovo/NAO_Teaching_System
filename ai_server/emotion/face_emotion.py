@@ -2,13 +2,15 @@
 # -*- coding: utf-8 -*-
 
 import os
+
 import cv2
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from deepface import DeepFace
-from ai_server.utils.logger import setup_logger
+
+from logger import setup_logger
 
 # 设置日志
 logger = setup_logger('face_emotion')

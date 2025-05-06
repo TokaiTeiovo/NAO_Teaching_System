@@ -7,7 +7,7 @@ import re
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 
-from ai_server.utils.logger import setup_logger
+from logger import setup_logger
 
 # 创建日志记录器
 #logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

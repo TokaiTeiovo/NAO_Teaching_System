@@ -6,7 +6,7 @@ from paddleocr import PaddleOCR
 from pdf2image import convert_from_path
 from tqdm import tqdm
 
-from ai_server.utils.logger import setup_logger
+from logger import setup_logger
 
 # 创建日志记录器
 logger = setup_logger('paddle_cpu_ocr_extractor')

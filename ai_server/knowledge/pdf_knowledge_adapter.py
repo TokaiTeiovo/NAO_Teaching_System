@@ -1,6 +1,7 @@
 # ai_server/knowledge/pdf_knowledge_adapter.py
-import os
 import json
+import os
+
 from utils.logger import setup_logger
 
 # 设置日志

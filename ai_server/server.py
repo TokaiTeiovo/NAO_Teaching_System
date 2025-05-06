@@ -1,17 +1,17 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import os
-import json
-import time
 import asyncio
-import websockets
-import numpy as np
-import cv2
-from base64 import b64encode, b64decode
+import json
 import logging
-import threading
 import queue
+import threading
+import time
+from base64 import b64decode
+
+import cv2
+import numpy as np
+import websockets
 
 # 设置日志
 logging.basicConfig(
