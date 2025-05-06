@@ -1,0 +1,275 @@
+{% extends "base.html" %}
+
+{% block title %}模拟器 - NAO教学系统{% endblock %}
+
+{% block extra_css %}
+<style>
+    .robot-view {
+        width: 320px;
+        height: 240px;
+        background-color: #000;
+        margin: 0 auto;
+        border: 2px solid #ddd;
+        border-radius: 5px;
+    }
+
+    .control-panel {
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        padding: 15px;
+        margin-bottom: 15px;
+    }
+
+    .chat-box {
+        height: 400px;
+        overflow-y: auto;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        padding: 10px;
+        margin-bottom: 15px;
+    }
+
+    .message {
+        border-radius: 15px;
+        padding: 8px 15px;
+        margin-bottom: 10px;
+        max-width: 80%;
+    }
+
+    .user-message {
+        background-color: #e9ecef;
+        margin-left: auto;
+    }
+
+    .nao-message {
+        background-color: #0d6efd;
+        color: white;
+        margin-right: auto;
+    }
+
+    .emotion-button {
+        margin: 5px;
+    }
+
+    .gesture-panel {
+        margin-top: 15px;
+    }
+
+    .gesture-button {
+        margin: 5px;
+    }
+
+    .robot-face {
+        width: 100%;
+        height: 100%;
+        background-color: #333;
+        border-radius: 5px;
+        position: relative;
+    }
+
+    .robot-eyes {
+        position: absolute;
+        top: 30%;
+        width: 100%;
+        text-align: center;
+    }
+
+    .robot-eye {
+        display: inline-block;
+        width: 40px;
+        height: 40px;
+        background-color: #00f;
+        border-radius: 50%;
+        margin: 0 30px;
+    }
+
+    .robot-mouth {
+        position: absolute;
+        bottom: 30%;
+        width: 100%;
+        text-align: center;
+    }
+
+    .mouth-neutral {
+        width: 80px;
+        height: 10px;
+        background-color: #ccc;
+        margin: 0 auto;
+    }
+
+    .mouth-happy {
+        width: 80px;
+        height: 40px;
+        border-radius: 0 0 40px 40px;
+        background-color: #ccc;
+        margin: 0 auto;
+    }
+
+    .mouth-sad {
+        width: 80px;
+        height: 40px;
+        border-radius: 40px 40px 0 0;
+        background-color: #ccc;
+        margin: 0 auto;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <h2><i class="fas fa-gamepad me-2"></i>NAO模拟器</h2>
+        <p class="text-muted">模拟NAO机器人的交互和教学场景</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">机器人视图</h5>
+            </div>
+            <div class="card-body">
+                <div class="robot-view">
+                    <div class="robot-face">
+                        <div class="robot-eyes">
+                            <div class="robot-eye"></div>
+                            <div class="robot-eye"></div>
+                        </div>
+                        <div class="robot-mouth">
+                            <div class="mouth-neutral"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="text-center mt-2">
+                    <div class="badge bg-primary" id="robot-status">状态: 空闲</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">控制面板</h5>
+            </div>
+            <div class="card-body">
+                <div class="control-panel">
+                    <h6>连接控制</h6>
+                    <button class="btn btn-primary" id="connect-button">连接服务器</button>
+                    <button class="btn btn-warning" id="disconnect-button">断开连接</button>
+                </div>
+
+                <div class="control-panel">
+                    <h6>情感模拟</h6>
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-sm btn-success emotion-button" data-emotion="喜悦">喜悦</button>
+                        <button type="button" class="btn btn-sm btn-primary emotion-button" data-emotion="中性">中性</button>
+                        <button type="button" class="btn btn-sm btn-info emotion-button" data-emotion="惊讶">惊讶</button>
+                        <button type="button" class="btn btn-sm btn-warning emotion-button" data-emotion="厌恶">厌恶</button>
+                        <button type="button" class="btn btn-sm btn-danger emotion-button" data-emotion="愤怒">愤怒</button>
+                    </div>
+                </div>
+
+                <div class="gesture-panel">
+                    <h6>手势动作</h6>
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-sm btn-outline-secondary gesture-button" data-gesture="greeting">问候</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary gesture-button" data-gesture="thinking">思考</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary gesture-button" data-gesture="pointing">指示</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary gesture-button" data-gesture="explaining">解释</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">示例场景</h5>
+            </div>
+            <div class="card-body">
+                <button class="btn btn-info mb-2" id="demo-introduction">初次见面</button>
+                <button class="btn btn-info mb-2" id="demo-teaching">概念讲解</button>
+                <button class="btn btn-info mb-2" id="demo-exercise">练习辅导</button>
+                <button class="btn btn-info" id="demo-encouragement">鼓励反馈</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">对话窗口</h5>
+            </div>
+            <div class="card-body">
+                <div class="chat-box" id="chat-box">
+                    <!-- 对话内容 -->
+                    <div class="d-flex">
+                        <div class="message nao-message">
+                            你好！我是NAO助教，有什么我可以帮助你的吗？
+                        </div>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="message-input" placeholder="输入消息...">
+                    <button class="btn btn-primary" id="send-button">发送</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header d-flex justify-content-between">
+                <h5 class="card-title mb-0">状态监视器</h5>
+                <button class="btn btn-sm btn-outline-secondary" id="clear-log">清除</button>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>参数</th>
+                                <th>值</th>
+                                <th>状态</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>连接状态</td>
+                                <td id="connection-status">未连接</td>
+                                <td><div class="status-indicator status-offline"></div></td>
+                            </tr>
+                            <tr>
+                                <td>电池电量</td>
+                                <td id="battery-level">75%</td>
+                                <td><div class="status-indicator status-online"></div></td>
+                            </tr>
+                            <tr>
+                                <td>当前姿势</td>
+                                <td id="current-pose">站立</td>
+                                <td><div class="status-indicator status-online"></div></td>
+                            </tr>
+                            <tr>
+                                <td>情感状态</td>
+                                <td id="emotion-state">中性</td>
+                                <td><div class="status-indicator status-online"></div></td>
+                            </tr>
+                            <tr>
+                                <td>响应时间</td>
+                                <td id="system-response-time">150ms</td>
+                                <td><div class="status-indicator status-online"></div></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="mt-3">
+                    <div id="status-log" style="height: 200px; overflow-y: auto; font-family: monospace; font-size: 12px; background-color: #f8f9fa; padding: 10px; border-radius: 5px;">
+                        <!-- 状态日志 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/simulator.js') }}"></script>
+{% endblock %}
