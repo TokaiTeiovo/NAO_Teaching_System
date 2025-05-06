@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}NAO教学系统监控{% endblock %}</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+    <!-- Socket.IO -->
+    <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.5.1/dist/socket.io.min.js"></script>
+    <!-- 自定义CSS -->
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-robot me-2"></i>NAO教学系统
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="/">
+                            <i class="fas fa-tachometer-alt me-1"></i>仪表盘
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == '/monitor' %}active{% endif %}" href="/monitor">
+                            <i class="fas fa-chart-line me-1"></i>监控
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == '/simulator' %}active{% endif %}" href="/simulator">
+                            <i class="fas fa-gamepad me-1"></i>模拟器
+                        </a>
+                    </li>
+                </ul>
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <span class="nav-link" id="server-status">
+                            <i class="fas fa-circle text-warning"></i> 服务器状态: 正在检查...
+                        </span>
+                    </li>
+                    <li class="nav-item">
+                        <span class="nav-link" id="nao-status">
+                            <i class="fas fa-circle text-secondary"></i> NAO状态: 未连接
+                        </span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主内容 -->
+    <div class="container-fluid mt-3">
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- 页脚 -->
+    <footer class="footer mt-auto py-3 bg-light">
+        <div class="container text-center">
+            <span class="text-muted">NAO教学系统监控平台 &copy; 2025</span>
+        </div>
+    </footer>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+    <!-- 核心JS -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+
+    {% block extra_js %}{% endblock %}
+
+    <script>
+        // 初始化Socket.IO连接
+        const socket = io();
+
+        // 连接事件
+        socket.on('connect', function() {
+            console.log('已连接到服务器');
+        });
+
+        // 断开连接事件
+        socket.on('disconnect', function() {
+            console.log('与服务器断开连接');
+            $('#server-status').html('<i class="fas fa-circle text-danger"></i> 服务器状态: 断开连接');
+        });
+
+        // 服务器响应事件
+        socket.on('server_response', function(data) {
+            console.log('服务器响应:', data);
+        });
+
+        // 系统更新事件
+        socket.on('system_update', function(data) {
+            console.log('系统更新:', data);
+
+            // 更新服务器状态
+            if (data.ai_server_connected) {
+                $('#server-status').html('<i class="fas fa-circle text-success"></i> 服务器状态: 已连接');
+            } else {
+                $('#server-status').html('<i class="fas fa-circle text-danger"></i> 服务器状态: 未连接');
+            }
+
+            // 更新NAO状态
+            if (data.nao_connected) {
+                $('#nao-status').html('<i class="fas fa-circle text-success"></i> NAO状态: 已连接');
+            } else {
+                $('#nao-status').html('<i class="fas fa-circle text-secondary"></i> NAO状态: 未连接');
+            }
+        });
+    </script>
+</body>
+</html>
