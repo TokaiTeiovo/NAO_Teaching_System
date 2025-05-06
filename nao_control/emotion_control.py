@@ -246,3 +246,38 @@ class EmotionFusion(object):  # Python 2.7使用经典风格的类定义
                 "参与度": 0.5,
                 "理解度": 0.5
             }
+
+    # 在motion_control.py中添加教学相关动作
+    def perform_teaching_gesture(self, gesture_type, intensity=0.5):
+        """
+        执行教学相关手势
+        """
+        if gesture_type == "explaining":
+            # 解释概念的手势 - 双手展开
+            self.motion.setAngles("LShoulderPitch", 0.5, 0.2)
+            self.motion.setAngles("LShoulderRoll", 0.3, 0.2)
+            self.motion.setAngles("LElbowRoll", -1.0, 0.2)
+            self.motion.setAngles("RShoulderPitch", 0.5, 0.2)
+            self.motion.setAngles("RShoulderRoll", -0.3, 0.2)
+            self.motion.setAngles("RElbowRoll", 1.0, 0.2)
+
+        elif gesture_type == "attention_seeking":
+            # 寻求注意力的手势 - 挥手
+            self.motion.setAngles("RShoulderPitch", 0.0, 0.2)
+            self.motion.setAngles("RShoulderRoll", -0.3, 0.2)
+            self.motion.setAngles("RElbowRoll", 1.0, 0.2)
+            self.motion.setAngles("RElbowYaw", 1.3, 0.2)
+
+            # 手臂摆动
+            for i in range(2):
+                self.motion.setAngles("RWristYaw", -0.3, 0.3)
+                time.sleep(0.2)
+                self.motion.setAngles("RWristYaw", 0.3, 0.3)
+                time.sleep(0.2)
+
+        elif gesture_type == "pointing":
+            # 指向手势 - 右手指向前方
+            self.motion.setAngles("RShoulderPitch", 0.4, 0.2)
+            self.motion.setAngles("RShoulderRoll", -0.2, 0.2)
+            self.motion.setAngles("RElbowRoll", 0.3, 0.2)
+            self.motion.setAngles("RElbowYaw", 1.3, 0.2)

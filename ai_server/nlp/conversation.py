@@ -158,3 +158,22 @@ class ConversationManager:
         except Exception as e:
             logger.error(f"处理查询时出错: {e}", exc_info=True)
             return "很抱歉，我遇到了一些问题，无法回答您的问题。"
+
+    # 在conversation.py中完善教学相关意图识别
+    def detect_teaching_intent(self, query):
+        """
+        检测教学相关意图
+        """
+        query = query.lower()
+
+        if any(kw in query for kw in ["什么是", "定义", "解释", "概念"]):
+            return "concept_explanation"
+        elif any(kw in query for kw in ["例子", "示例", "举例"]):
+            return "example_request"
+        elif any(kw in query for kw in ["误区", "常见错误", "容易混淆"]):
+            return "misconception_query"
+        elif any(kw in query for kw in ["相关", "类似", "关联"]):
+            return "related_concepts"
+        # 其他教学意图...
+
+        return "general_query"

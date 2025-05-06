@@ -41,6 +41,48 @@ def main(robot_ip, robot_port):
             motion.rest()
 
 
+# 在nao_control/main.py中添加教学演示场景
+def run_teaching_demo(self):
+    """
+    运行教学示范课
+    """
+    try:
+        # 欢迎语
+        self.say("欢迎来到编程基础课。今天我将为大家讲解C语言的基本概念。")
+
+        # 展示课程大纲
+        self.perform_gesture("explaining")
+        self.say("我们将学习三个主要概念：变量、函数和条件语句。")
+        time.sleep(1)
+
+        # 教授第一个概念
+        self.perform_gesture("pointing")
+        self.say("首先，让我们了解什么是变量。变量是计算机内存中存储数据的命名空间。")
+        time.sleep(1)
+
+        # 展示例子
+        self.perform_gesture("explaining")
+        self.say("例如，int age = 18; 创建了一个名为age的整数变量，其值为18。")
+        time.sleep(1)
+
+        # 检测学生理解情况
+        self.say("请看向我，让我检查一下大家是否理解这个概念。")
+
+        # 捕获图像分析情感
+        image = self.capture_image()
+        if image is not None:
+            self.send_image_to_server(image)
+            time.sleep(1)  # 等待服务器响应
+
+        # 根据反馈调整教学
+        self.say("我注意到有些同学可能对变量的概念还不太清楚。让我用另一种方式解释。")
+        self.say("变量就像是一个带标签的盒子，你可以在里面放东西，也可以随时查看或改变里面的内容。")
+
+        # 继续教学其他概念...
+
+    except Exception as e:
+        print(f"教学演示运行时出错: {e}")
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--ip", type=str, default="127.0.0.1",

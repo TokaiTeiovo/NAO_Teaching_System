@@ -37,22 +37,17 @@ def import_knowledge_graph(json_path, neo4j_uri="bolt://localhost:7687", neo4j_u
         logger.info("清空数据库...")
         graph.run("MATCH (n) DETACH DELETE n")
 
-    # 创建约束
+    # 创建约束 - 使用新版语法
     try:
         logger.info("创建约束...")
-        graph.run("CREATE CONSTRAINT IF NOT EXISTS ON (c:Concept) ASSERT c.name IS UNIQUE")
-        graph.run("CREATE CONSTRAINT IF NOT EXISTS ON (e:Example) ASSERT e.name IS UNIQUE")
-        graph.run("CREATE CONSTRAINT IF NOT EXISTS ON (m:Misconception) ASSERT m.name IS UNIQUE")
+        # 使用新版Neo4j语法创建约束
+        graph.run("CREATE CONSTRAINT IF NOT EXISTS FOR (c:Concept) REQUIRE c.name IS UNIQUE")
+        graph.run("CREATE CONSTRAINT IF NOT EXISTS FOR (e:Example) REQUIRE e.name IS UNIQUE")
+        graph.run("CREATE CONSTRAINT IF NOT EXISTS FOR (m:Misconception) REQUIRE m.name IS UNIQUE")
+        logger.info("使用新版Neo4j语法创建约束成功")
     except Exception as e:
         logger.error(f"创建约束时出错: {e}")
-        try:
-            # 尝试使用旧版Neo4j语法
-            graph.run("CREATE CONSTRAINT ON (c:Concept) ASSERT c.name IS UNIQUE")
-            graph.run("CREATE CONSTRAINT ON (e:Example) ASSERT e.name IS UNIQUE")
-            graph.run("CREATE CONSTRAINT ON (m:Misconception) ASSERT m.name IS UNIQUE")
-            logger.info("使用旧版Neo4j语法创建约束成功")
-        except Exception as e2:
-            logger.error(f"创建约束时出错(旧版语法): {e2}")
+        logger.info("尝试不使用约束继续导入...")
 
     # 读取JSON文件
     try:

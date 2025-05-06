@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from utils.logger import setup_logger
+from logger import setup_logger
 
 # 设置日志
 logger = setup_logger('knowledge_recommender')
@@ -219,3 +219,37 @@ class KnowledgeRecommender:
                     "path": [],
                     "alternative_concepts": []
                 }
+
+    # 在recommender.py中增加学习路径生成功能
+    def generate_learning_sequence(self, target_concept, student_knowledge_state):
+        """
+        生成学习序列，包含概念、示例和练习
+        """
+        # 获取学习路径
+        path = self.kg.get_learning_path(self.find_starting_point(student_knowledge_state),
+                                         target_concept)
+
+        learning_sequence = []
+
+        for concept in path:
+            # 获取概念信息
+            concept_info = self.kg.get_concept(concept)
+
+            # 获取示例
+            examples = self.kg.get_examples(concept, limit=2)
+
+            # 获取常见误区
+            misconceptions = self.kg.get_misconceptions(concept, limit=1)
+
+            # 添加到学习序列
+            sequence_item = {
+                "concept": concept_info,
+                "examples": examples,
+                "misconceptions": misconceptions,
+                "difficulty": self.adjust_difficulty(concept_info.get("difficulty", 3),
+                                                     student_knowledge_state.get(concept, 0))
+            }
+
+            learning_sequence.append(sequence_item)
+
+        return learning_sequence

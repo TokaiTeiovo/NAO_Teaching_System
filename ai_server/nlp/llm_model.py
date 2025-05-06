@@ -147,3 +147,39 @@ class LLMModel:
         except Exception as e:
             logger.error(f"获取嵌入向量时出错: {e}", exc_info=True)
             return None
+
+        # 在llm_model.py中添加教学模板
+    def create_teaching_prompt(self, concept, detail_level="medium", tone="neutral"):
+        """
+        创建教学提示模板
+        """
+        detail_instructions = {
+            "very_basic": "用极其简单的语言，只解释最基础的内容。使用生活中的类比。",
+            "basic": "用简单语言解释主要内容，避免专业术语。",
+            "medium": "平衡基础和进阶内容，使用少量专业术语并解释它们。",
+            "advanced": "详细解释内容，包括相关理论和应用，使用专业术语。",
+            "expert": "深入探讨概念的高级方面，包括边界情况和最新研究。"
+        }
+
+        tone_instructions = {
+            "encouraging": "使用鼓励性的语言，强调进步和可能性。",
+            "neutral": "使用客观、平实的语言解释概念。",
+            "positive": "使用积极的语言，强调概念的有趣和实用方面。",
+            "empathetic": "表现出理解学习困难，承认概念可能具有挑战性。"
+        }
+
+        prompt = f"""
+        以下是一个教学对话。你是NAO助教，一位善于解释概念的教学助手。
+
+        请解释"{concept}"概念。{detail_instructions.get(detail_level, "")}
+        {tone_instructions.get(tone, "")}
+
+        回答应结构清晰，包含以下部分：
+        1. 简明定义
+        2. 关键特性
+        3. 应用场景或例子
+
+        NAO助教:
+        """
+
+        return prompt

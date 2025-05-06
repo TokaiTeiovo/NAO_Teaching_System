@@ -246,3 +246,45 @@ class EmotionFusion:
                 "参与度": 0.5,
                 "理解度": 0.5
             }
+
+    # 在fusion.py中实现基于情感的教学策略生成
+    def generate_teaching_strategy(self, emotion_state, learning_state):
+        """
+        根据情感和学习状态生成教学策略
+        """
+        strategy = {
+            "tone": "neutral",
+            "pace": "normal",
+            "detail_level": "medium",
+            "example_count": 1,
+            "gestures": []
+        }
+
+        # 根据情感调整教学策略
+        dominant_emotion = emotion_state.get("emotion", "中性")
+        emotions = emotion_state.get("emotions", {})
+
+        # 注意力调整
+        attention = learning_state.get("注意力", 0.5)
+        if attention < 0.3:
+            strategy["gestures"].append("attention_seeking")
+            strategy["detail_level"] = "low"
+            strategy["example_count"] = 2  # 更多例子激发兴趣
+
+        # 情绪调整
+        if dominant_emotion == "喜悦":
+            strategy["tone"] = "positive"
+            strategy["pace"] = "slightly_faster"
+        elif dominant_emotion == "悲伤" or dominant_emotion == "厌恶":
+            strategy["tone"] = "encouraging"
+            strategy["pace"] = "slower"
+            strategy["gestures"].append("encouraging")
+
+        # 根据理解度调整教学深度
+        understanding = learning_state.get("理解度", 0.5)
+        if understanding < 0.4:
+            strategy["detail_level"] = "very_basic"
+        elif understanding > 0.7:
+            strategy["detail_level"] = "advanced"
+
+        return strategy
