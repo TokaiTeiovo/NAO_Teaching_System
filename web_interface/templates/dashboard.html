@@ -2,87 +2,6 @@
 
 {% block title %}仪表盘 - NAO教学系统监控{% endblock %}
 
-{% block extra_css %}
-<style>
-    .card-counter {
-        box-shadow: 2px 2px 10px #dadada;
-        padding: 20px 10px;
-        background-color: #fff;
-        height: 100px;
-        border-radius: 5px;
-        transition: .3s linear all;
-    }
-
-    .card-counter:hover {
-        box-shadow: 4px 4px 20px #dadada;
-        transition: .3s linear all;
-    }
-
-    .card-counter i {
-        font-size: 4em;
-        opacity: 0.2;
-    }
-
-    .card-counter .count-numbers {
-        position: absolute;
-        right: 35px;
-        top: 20px;
-        font-size: 32px;
-        display: block;
-    }
-
-    .card-counter .count-name {
-        position: absolute;
-        right: 35px;
-        top: 65px;
-        font-style: italic;
-        text-transform: capitalize;
-        opacity: 0.5;
-        display: block;
-        font-size: 18px;
-    }
-
-    .card-counter.primary {
-        background-color: #007bff;
-        color: #FFF;
-    }
-
-    .card-counter.success {
-        background-color: #28a745;
-        color: #FFF;
-    }
-
-    .card-counter.warning {
-        background-color: #ffc107;
-        color: #000;
-    }
-
-    .card-counter.danger {
-        background-color: #dc3545;
-        color: #FFF;
-    }
-
-    .card-counter.info {
-        background-color: #17a2b8;
-        color: #FFF;
-    }
-
-    .status-card {
-        transition: all 0.3s;
-    }
-
-    .status-card:hover {
-        transform: translateY(-5px);
-    }
-
-    .emotion-badge {
-        font-size: 0.9em;
-        padding: 5px 10px;
-        border-radius: 15px;
-    }
-</style>
-{% endblock %}
-
 {% block content %}
 <div class="row mb-4">
     <div class="col-md-12">
@@ -107,63 +26,185 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
 
-                <div class="col-md-3">
-                    <div class="card status-card">
-                        <div class="card-body">
-                            <div class="d-flex align-items-center">
-                                <div class="flex-shrink-0">
-                                    <i class="fas fa-robot fa-2x text-success"></i>
-                                </div>
-                                <div class="flex-grow-1 ms-3">
-                                    <h5 class="card-title">NAO状态</h5>
-                                    <p class="card-text" id="nao-status">
-                                        <span class="badge bg-secondary">未连接</span>
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
+    <div class="col-md-3">
+        <div class="card status-card">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-robot fa-2x text-success"></i>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <h5 class="card-title">NAO状态</h5>
+                        <p class="card-text" id="nao-status">
+                            <span class="badge bg-secondary">未连接</span>
+                        </p>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
 
-                <div class="col-md-3">
-                    <div class="card status-card">
-                        <div class="card-body">
-                            <div class="d-flex align-items-center">
-                                <div class="flex-shrink-0">
-                                    <i class="fas fa-battery-three-quarters fa-2x text-warning"></i>
-                                </div>
-                                <div class="flex-grow-1 ms-3">
-                                    <h5 class="card-title">NAO电池</h5>
-                                    <p class="card-text" id="nao-battery">
-                                        <div class="progress">
-                                            <div class="progress-bar bg-success" role="progressbar" style="width: 75%" aria-valuenow="75" aria-valuemin="0" aria-valuemax="100">75%</div>
-                                        </div>
-                                    </p>
-                                </div>
+    <div class="col-md-3">
+        <div class="card status-card">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-battery-three-quarters fa-2x text-warning"></i>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <h5 class="card-title">NAO电池</h5>
+                        <p class="card-text" id="nao-battery">
+                            <div class="progress">
+                                <div class="progress-bar bg-success" role="progressbar" style="width: 75%" aria-valuenow="75" aria-valuemin="0" aria-valuemax="100">75%</div>
                             </div>
-                        </div>
+                        </p>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
 
-                <div class="col-md-3">
-                    <div class="card status-card">
-                        <div class="card-body">
-                            <div class="d-flex align-items-center">
-                                <div class="flex-shrink-0">
-                                    <i class="fas fa-clock fa-2x text-info"></i>
-                                </div>
-                                <div class="flex-grow-1 ms-3">
-                                    <h5 class="card-title">响应时间</h5>
-                                    <p class="card-text" id="response-time">
-                                        <span class="badge bg-info">200ms</span>
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
+    <div class="col-md-3">
+        <div class="card status-card">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-clock fa-2x text-info"></i>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <h5 class="card-title">响应时间</h5>
+                        <p class="card-text" id="response-time">
+                            <span class="badge bg-info">200ms</span>
+                        </p>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+<!-- 系统监控和控制 -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">系统资源监控</h5>
+                <button class="btn btn-sm btn-outline-secondary" id="refresh-status-btn">
+                    <i class="fas fa-sync-alt"></i> 刷新
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="system-chart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">系统控制</h5>
+            </div>
+            <div class="card-body">
+                <div class="control-panel mb-3">
+                    <h6 class="control-title">AI服务器控制</h6>
+                    <div class="control-buttons">
+                        <button class="btn btn-primary" id="start-server-btn">
+                            <i class="fas fa-play"></i> 启动服务器
+                        </button>
+                        <button class="btn btn-danger" id="stop-server-btn">
+                            <i class="fas fa-stop"></i> 停止服务器
+                        </button>
+                    </div>
+                </div>
+
+                <div class="control-panel">
+                    <h6 class="control-title">NAO机器人控制</h6>
+                    <div class="mb-3">
+                        <label for="nao-ip-input" class="form-label">NAO IP地址</label>
+                        <input type="text" class="form-control" id="nao-ip-input" placeholder="例如: 192.168.1.100" value="127.0.0.1">
+                    </div>
+                    <div class="control-buttons">
+                        <button class="btn btn-success" id="connect-nao-btn">
+                            <i class="fas fa-plug"></i> 连接NAO
+                        </button>
+                        <button class="btn btn-warning" id="disconnect-nao-btn">
+                            <i class="fas fa-unlink"></i> 断开连接
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 系统状态和警告 -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">系统状态与警告</h5>
+            </div>
+            <div class="card-body">
+                <div id="system-issues">
+                    <div class="alert alert-success" role="alert">
+                        <i class="fas fa-check-circle"></i> 系统运行正常，无警告或错误
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 情感统计和会话历史 -->
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">情感分布统计</h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="emotion-chart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">最近会话</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <div class="chart-container" style="height: 200px;">
+                        <canvas id="session-chart"></canvas>
+                    </div>
+                </div>
+                <h6 class="card-subtitle mb-2 text-muted">会话列表</h6>
+                <div class="list-group" id="recent-sessions">
+                    <div class="list-group-item text-center">
+                        <div class="spinner-border spinner-border-sm text-primary" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                        加载中...
+                    </div>
+                </div>
+                <div class="text-end mt-2">
+                    <a href="/sessions" class="btn btn-sm btn-outline-primary">查看全部会话</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}
