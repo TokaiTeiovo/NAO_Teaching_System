@@ -122,8 +122,14 @@ async def start_server(args):
     try:
         # 启动WebSocket服务器
         print("准备启动WebSocket服务器...")
-        await server.start_server()
+        server_context = await server.start_server()
         print("WebSocket服务器启动完成")
+
+        # 使用异步上下文管理器启动服务器
+        async with server_context:
+            print("服务器运行中，按Ctrl+C退出...")
+            # 保持服务器运行
+            await asyncio.Future()
     except KeyboardInterrupt:
         logger.info("接收到中断信号，正在关闭服务器...")
         print("接收到中断信号，正在关闭服务器...")
@@ -131,11 +137,9 @@ async def start_server(args):
         logger.error(f"启动服务器时出错: {e}")
         print(f"启动服务器时出错: {e}")
     finally:
-        # 如果Web监控线程在运行，等待其完成
-        if web_thread and web_thread.is_alive():
-            logger.info("正在关闭Web监控服务...")
-            print("正在关闭Web监控服务...")
-            # 由于是daemon线程，主线程结束后会自动终止
+        # 停止服务器
+        if hasattr(server, 'server'):
+            await server.stop_server()
 
 
 if __name__ == "__main__":
