@@ -5,7 +5,7 @@
   },
   "llm": {
     "model_name": "deepseek-ai/deepseek-llm-7b-chat",
-    "model_path": "D:\\biyesheji\\Models\\deepseek-llm-7b-chat",
+    "model_path": "D:\\biyesheji\\NAO_Teaching_System\\NAO_Teaching_System\\models\\deepseek-llm-7b-chat",
     "use_lora": false
   },
   "emotion": {
