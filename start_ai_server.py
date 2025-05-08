@@ -22,6 +22,7 @@ try:
     flask_available = True
 except ImportError:
     flask_available = False
+    logger.warning("未安装Flask或Flask-SocketIO，无法启动Web监控")
 
 # 创建SocketIO实例
 socketio = None
@@ -83,24 +84,31 @@ async def start_server(args):
     启动AI服务器
     """
     # 导入AIWebSocketServer类
+    print("正在导入 AIWebSocketServer 类...")
     from ai_server.server import AIWebSocketServer
+    print("导入 AIWebSocketServer 类成功")
 
     logger.info("启动AI服务器...")
     logger.info(f"主机: {args.host}")
     logger.info(f"端口: {args.port}")
 
     # 创建服务器实例
+    print("正在创建服务器实例...")
     server = AIWebSocketServer(args.host, args.port)
+    print("服务器实例创建完成")
 
     # 如果启用Web监控
     web_app = None
     web_thread = None
 
     if args.web_monitor:
+        print("准备创建Web监控应用...")
         # 创建Web应用
         web_app = create_web_app()
+        print("Web监控应用创建" + ("成功" if web_app else "失败"))
 
         if web_app:
+            print("准备启动Web监控线程...")
             # 在独立线程中启动Web监控
             web_thread = threading.Thread(
                 target=start_web_monitor,
@@ -109,16 +117,24 @@ async def start_server(args):
             )
             web_thread.start()
             logger.info("Web监控服务线程已启动")
+            print("Web监控线程已启动")
 
     try:
         # 启动WebSocket服务器
+        print("准备启动WebSocket服务器...")
         await server.start_server()
+        print("WebSocket服务器启动完成")
     except KeyboardInterrupt:
         logger.info("接收到中断信号，正在关闭服务器...")
+        print("接收到中断信号，正在关闭服务器...")
+    except Exception as e:
+        logger.error(f"启动服务器时出错: {e}")
+        print(f"启动服务器时出错: {e}")
     finally:
         # 如果Web监控线程在运行，等待其完成
         if web_thread and web_thread.is_alive():
             logger.info("正在关闭Web监控服务...")
+            print("正在关闭Web监控服务...")
             # 由于是daemon线程，主线程结束后会自动终止
 
 
@@ -134,15 +150,29 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    print("解析命令行参数完成")
+    print(f"主机: {args.host}, 端口: {args.port}")
+    print(f"Web监控: {'启用' if args.web_monitor else '禁用'}")
+    if args.web_monitor:
+        print(f"Web监控主机: {args.web_host}, Web监控端口: {args.web_port}")
+
     # 检查是否可以启动Web监控
     if args.web_monitor and not flask_available:
         logger.warning("未安装Flask或Flask-SocketIO，无法启动Web监控")
         logger.warning("请安装相关依赖: pip install flask flask-socketio websocket-client eventlet")
         args.web_monitor = False
+        print("由于缺少依赖，已禁用Web监控功能")
 
     # 使用asyncio.run启动服务器
+    print("准备启动异步运行环境...")
     try:
         asyncio.run(start_server(args))
+        print("异步运行环境已退出")
     except KeyboardInterrupt:
         logger.info("程序被用户中断")
+        print("程序被用户中断")
         sys.exit(0)
+    except Exception as e:
+        logger.error(f"程序运行出错: {e}")
+        print(f"程序运行出错: {e}")
+        sys.exit(1)

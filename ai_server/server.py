@@ -5,6 +5,7 @@ import asyncio
 import json
 import logging
 import queue
+import socket
 import threading
 import time
 from base64 import b64decode
@@ -480,6 +481,22 @@ class AIWebSocketServer:
     async def start_server(self):
         """启动WebSocket服务器"""
         try:
+            print("开始启动WebSocket服务器...")
+            print(f"尝试绑定到 {self.host}:{self.port}")
+
+            # 检查端口是否被占用
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.bind((self.host, self.port))
+                s.close()
+                print(f"端口 {self.port} 可用")
+            except socket.error as e:
+                print(f"端口 {self.port} 被占用或无法绑定: {e}")
+                logger.error(f"端口 {self.port} 被占用或无法绑定: {e}")
+                raise
+
+            print("创建WebSocket服务实例...")
+
             # 创建WebSocket服务器
             self.server = await websockets.serve(
                 self.handle_client,
@@ -490,10 +507,17 @@ class AIWebSocketServer:
                 max_size=10 * 1024 * 1024  # 最大消息大小10MB
             )
 
+            print(f"WebSocket服务器已成功启动在 {self.host}:{self.port}")
             logger.info(f"WebSocket服务器已启动: {self.host}:{self.port}")
+
+            # 保持服务器运行
+            await self.server.wait_closed()
+            print("WebSocket服务器已关闭")
+
             return self.server
 
         except Exception as e:
+            print(f"启动WebSocket服务器时详细错误: {type(e).__name__}: {e}")
             logger.error(f"启动服务器时出错: {str(e)}", exc_info=True)
             raise
 
@@ -503,6 +527,7 @@ class AIWebSocketServer:
             self.server.close()
             await self.server.wait_closed()
             logger.info("WebSocket服务器已停止")
+            print("WebSocket服务器已停止")
 
         # 停止处理线程
         self.running = False
@@ -515,6 +540,7 @@ class AIWebSocketServer:
                 thread.join(timeout=2.0)
 
         logger.info("所有处理线程已停止")
+        print("所有处理线程已停止")
 
     async def broadcast(self, msg_type, data):
         """
