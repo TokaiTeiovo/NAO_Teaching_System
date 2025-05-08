@@ -5,7 +5,6 @@ eventlet.monkey_patch()
 
 import argparse
 import asyncio
-import threading
 import sys
 
 # 导入项目的日志模块
@@ -66,18 +65,20 @@ def create_web_app():
         logger.error("未找到web_monitor模块，无法启动Web监控")
         return None
 
-
-def start_web_monitor(app, host="0.0.0.0", port=5000):
+def start_web_monitor(app, host="127.0.0.1", port=5001):
     """启动Web监控服务"""
-    if app and socketio:
-        logger.info(f"启动Web监控服务: http://{host}:{port}/")
-        # 使用eventlet作为异步后端
-        import eventlet
-        eventlet.monkey_patch()
-        socketio.run(app, host=host, port=port, debug=False, use_reloader=False)
-    else:
-        logger.error("Web监控应用初始化失败，无法启动Web监控服务")
-
+    try:
+        if app and socketio:
+            logger.info(f"启动Web监控服务: http://{host}:{port}/")
+            # 使用eventlet作为异步后端
+            import eventlet
+            eventlet.monkey_patch()
+            socketio.run(app, host=host, port=port, debug=False, use_reloader=False)
+        else:
+            logger.error("Web监控应用初始化失败，无法启动Web监控服务")
+    except Exception as e:
+        logger.error(f"启动Web监控服务时出错: {e}", exc_info=True)
+        print(f"启动Web监控服务时出错: {e}")
 
 async def start_server(args):
     """
@@ -101,23 +102,34 @@ async def start_server(args):
     web_app = None
     web_thread = None
 
+    # 如果启用Web监控
     if args.web_monitor:
-        print("准备创建Web监控应用...")
-        # 创建Web应用
-        web_app = create_web_app()
-        print("Web监控应用创建" + ("成功" if web_app else "失败"))
+        print("准备启动Web监控服务...")
+        import subprocess
+        import sys
+        import os
 
-        if web_app:
-            print("准备启动Web监控线程...")
-            # 在独立线程中启动Web监控
-            web_thread = threading.Thread(
-                target=start_web_monitor,
-                args=(web_app, args.web_host, args.web_port),
-                daemon=True
-            )
-            web_thread.start()
-            logger.info("Web监控服务线程已启动")
-            print("Web监控线程已启动")
+        # 检查 web_monitor.py 是否存在
+        monitor_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web_monitor.py")
+        if not os.path.exists(monitor_script):
+            print(f"错误: Web监控脚本不存在: {monitor_script}")
+            print("请先创建 web_monitor.py 文件")
+            # 继续运行主服务
+        else:
+            # 启动独立进程
+            try:
+                web_process = subprocess.Popen([
+                    sys.executable,
+                    monitor_script,
+                    "--host", args.web_host,
+                    "--port", str(args.web_port)
+                ])
+
+                logger.info(f"Web监控服务已在独立进程中启动: PID={web_process.pid}")
+                print(f"Web监控服务已启动: http://{args.web_host}:{args.web_port}/")
+            except Exception as e:
+                logger.error(f"启动Web监控服务时出错: {e}")
+                print(f"启动Web监控服务时出错: {e}")
 
     try:
         # 启动WebSocket服务器
