@@ -8,7 +8,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from utils.logger import setup_logger
+
+from logger import setup_logger
 
 # 设置日志
 logger = setup_logger('audio_emotion')

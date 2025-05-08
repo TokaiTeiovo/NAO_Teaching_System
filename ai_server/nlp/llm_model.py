@@ -6,7 +6,8 @@ import os
 import torch
 from peft import PeftModel
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
-from utils.logger import setup_logger
+
+from logger import setup_logger
 
 # 设置日志
 logger = setup_logger('llm_model')

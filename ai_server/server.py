@@ -3,7 +3,6 @@
 
 import asyncio
 import json
-import logging
 import queue
 import threading
 import time
@@ -13,12 +12,10 @@ import cv2
 import numpy as np
 import websockets
 
+from logger import setup_logger
+
 # 设置日志
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger('ai_websocket_server')
+logger = setup_logger('ai_websocket_server')
 
 
 class AIWebSocketServer:
@@ -27,18 +24,33 @@ class AIWebSocketServer:
     实现与NAO机器人的实时通信，处理多模态数据
     """
 
-    def __init__(self, host="localhost", port=8765):
+    def __init__(self, host="localhost", port=8765, config=None, llm=None, conversation=None,
+                 knowledge_graph=None, recommender=None, emotion_fusion=None):
         """
         初始化WebSocket服务器
 
         参数:
             host: 服务器主机地址
             port: 服务器端口
+            config: 配置对象
+            llm: 大语言模型
+            conversation: 对话管理器
+            knowledge_graph: 知识图谱
+            recommender: 知识推荐器
+            emotion_fusion: 情感融合模块
         """
         self.host = host
         self.port = port
         self.clients = {}  # 客户端连接字典
         self.server = None  # WebSocket服务器实例
+
+        # 存储组件引用
+        self.config = config
+        self.llm = llm
+        self.conversation = conversation
+        self.kg = knowledge_graph
+        self.recommender = recommender
+        self.emotion_fusion = emotion_fusion
 
         # 消息处理器映射
         self.message_handlers = {
@@ -55,6 +67,9 @@ class AIWebSocketServer:
 
         # 启动处理线程池
         self._start_processing_threads(num_threads=3)
+
+        # 记录服务器初始化
+        logger.info(f"AI服务器初始化完成: {host}:{port}")
 
     def _start_processing_threads(self, num_threads=3):
         """启动多个处理线程来处理任务队列"""
@@ -129,18 +144,27 @@ class AIWebSocketServer:
             # 解码音频数据
             audio_data = b64decode(encoded_data)
 
-            # TODO: 这里添加实际的音频处理逻辑
-            # 例如: 语音识别、情感分析等
+            # 使用情感分析模块处理音频
+            audio_emotion = {}
+            if hasattr(self, 'emotion_fusion') and self.emotion_fusion:
+                # 这里应该调用音频情感分析，但需要在音频情感分析模块中实现
+                # audio_emotion = audio_emotion_analyzer.analyze(audio_data)
+                pass
 
-            # 模拟处理延迟
-            time.sleep(0.5)
+            # 语音识别
+            recognized_text = ""
+            if self.llm:
+                # 假设LLM可以提供语音识别功能，或者这里应该调用专门的语音识别模块
+                # recognized_text = speech_recognizer.recognize(audio_data)
+                pass
 
             # 返回处理结果
             return {
-                "text": "这是识别的文本",  # 语音识别结果
-                "emotion": {
-                    "type": "neutral",  # 情感类型
-                    "confidence": 0.85  # 置信度
+                "text": recognized_text or "您说了什么呢？我没有听清楚。",
+                "emotion": audio_emotion or {
+                    "type": "neutral",
+                    "confidence": 0.85,
+                    "emotions": {"neutral": 0.85, "happy": 0.1, "sad": 0.05}
                 }
             }
 
@@ -168,8 +192,8 @@ class AIWebSocketServer:
             image_bytes = b64decode(encoded_data)
 
             # 根据格式解码图像
-            if image_format == "jpeg":
-                # 从JPEG字节数据解码图像
+            if image_format in ["jpeg", "jpg", "png"]:
+                # 从图像字节数据解码图像
                 np_arr = np.frombuffer(image_bytes, np.uint8)
                 image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
             else:
@@ -178,20 +202,33 @@ class AIWebSocketServer:
                     return {"error": "缺少图像形状信息"}
                 image = np.frombuffer(image_bytes, dtype=np.uint8).reshape(shape)
 
-            # TODO: 这里添加实际的图像处理逻辑
-            # 例如: 人脸检测、表情识别等
+            # 使用情感分析模块处理图像
+            face_emotion = {}
+            if hasattr(self, 'emotion_fusion') and self.emotion_fusion:
+                # 这里应该调用面部情感分析，但需要在面部情感分析模块中实现
+                # face_emotion = face_emotion_analyzer.analyze(image)
+                pass
 
-            # 模拟处理延迟
-            time.sleep(0.5)
+            # 返回处理结果，包括情感和学习状态评估
+            face_detected = True  # 应该由面部检测模块确定
 
-            # 返回处理结果
+            emotion_result = {
+                "type": "happy",  # 应该由情感分析结果决定
+                "confidence": 0.92,
+                "emotions": {"happy": 0.92, "neutral": 0.05, "surprised": 0.03}
+            }
+
+            # 学习状态评估
+            learning_states = {
+                "注意力": 0.85,
+                "参与度": 0.9,
+                "理解度": 0.7
+            }
+
             return {
-                "face_detected": True,
-                "emotion": {
-                    "type": "happy",  # 情感类型
-                    "confidence": 0.92  # 置信度
-                },
-                "attention": 0.85  # 注意力评分
+                "face_detected": face_detected,
+                "emotion": face_emotion or emotion_result,
+                "learning_states": learning_states
             }
 
         except Exception as e:
@@ -213,22 +250,28 @@ class AIWebSocketServer:
         context = data.get("context", {})
 
         try:
-            # TODO: 这里添加实际的文本处理逻辑
-            # 例如: 自然语言理解、对话管理等
-
-            # 模拟对话处理延迟
-            time.sleep(0.3)
-
-            # 简单的回复生成
-            if "你好" in text or "hello" in text.lower():
-                response = "你好！我是NAO机器人助教，有什么可以帮助你的吗？"
-            elif "再见" in text or "goodbye" in text.lower():
-                response = "再见！如果有问题随时来找我。"
+            # 使用对话管理器处理文本
+            if self.conversation:
+                response = self.conversation.process(text, context)
             else:
-                response = f"我收到了你的消息: \"{text}\"。请问有什么我可以帮助你的？"
+                # 如果没有对话管理器，使用LLM直接处理
+                if self.llm:
+                    prompt = f"学生: {text}\nNAO助教:"
+                    response = self.llm.generate(prompt)
+                else:
+                    # 如果没有LLM，使用简单回复
+                    response = f"我收到了您的消息: \"{text}\"。请问有什么我可以帮助您的？"
 
             # 添加动作建议
-            actions = ["greeting"] if "你好" in text else []
+            actions = []
+            if "你好" in text.lower() or "hello" in text.lower():
+                actions.append("greeting")
+            elif "谢谢" in text.lower() or "thank" in text.lower():
+                actions.append("nodding")
+            elif "指" in text.lower() or "那个" in text.lower() or "这个" in text.lower() or "point" in text.lower():
+                actions.append("pointing")
+            elif "解释" in text.lower() or "explain" in text.lower():
+                actions.append("explaining")
 
             return {
                 "text": response,
@@ -268,23 +311,48 @@ class AIWebSocketServer:
             elif command == "query_knowledge":
                 # 查询知识点
                 concept = params.get("concept", "")
-                # TODO: 实际的知识图谱查询
-                return {
-                    "concept": concept,
-                    "definition": f"{concept}的定义...",
-                    "related_concepts": ["相关概念1", "相关概念2"]
-                }
+
+                # 使用知识图谱查询概念
+                concept_info = None
+                if self.kg:
+                    concept_info = self.kg.get_concept(concept)
+
+                if concept_info:
+                    return {
+                        "concept": concept,
+                        "definition": concept_info.get("description", ""),
+                        "difficulty": concept_info.get("difficulty", 3),
+                        "importance": concept_info.get("importance", 3)
+                    }
+                else:
+                    # 如果知识图谱中没有，使用LLM生成回答
+                    if self.llm:
+                        prompt = f"请简洁定义概念: {concept}\n定义:"
+                        definition = self.llm.generate(prompt, max_length=200)
+                        return {
+                            "concept": concept,
+                            "definition": definition,
+                            "generated": True  # 标记为生成的内容
+                        }
+                    else:
+                        return {"error": f"未找到概念: {concept}"}
 
             elif command == "recommend_knowledge":
                 # 推荐知识点
                 current_concept = params.get("concept", "")
-                # TODO: 实际的知识推荐逻辑
-                return {
-                    "recommendations": [
-                        {"name": "推荐概念1", "relevance": 0.95},
-                        {"name": "推荐概念2", "relevance": 0.85}
-                    ]
-                }
+                student_state = params.get("student_state", {})
+
+                # 使用推荐器推荐知识点
+                recommendations = []
+                if self.recommender:
+                    recommendations = self.recommender.recommend_related_concepts(
+                        current_concept, student_state, limit=5
+                    )
+
+                if recommendations:
+                    return {"recommendations": recommendations}
+                else:
+                    return {"recommendations": [], "message": "没有找到相关推荐"}
 
             else:
                 return {"error": f"未知命令: {command}"}
@@ -349,8 +417,8 @@ class AIWebSocketServer:
 
             # 检查消息类型是否支持
             if msg_type in self.message_handlers:
-                # 添加到任务队列
-                self.task_queue.put((msg_type, client_id, msg_id, content))
+                # 调用相应的处理方法
+                await self.message_handlers[msg_type](client_id, msg_id, content)
             else:
                 # 返回错误响应
                 await self.send_error(
@@ -569,28 +637,3 @@ class AIWebSocketServer:
                 logger.info(f"移除断开连接的客户端: {client_id}")
 
         logger.info(f"广播消息已发送给 {len(self.clients)} 个客户端")
-
-
-# 启动服务器的主函数
-async def main():
-    """主函数"""
-    # 创建服务器实例
-    server = AIWebSocketServer(host="0.0.0.0", port=8765)
-
-    # 启动服务器
-    await server.start_server()
-
-    try:
-        # 保持服务器运行
-        while True:
-            await asyncio.sleep(1)
-    except KeyboardInterrupt:
-        print("接收到中断信号，正在关闭服务器...")
-    finally:
-        # 停止服务器
-        await server.stop_server()
-
-
-# 如果直接运行此脚本，启动服务器
-if __name__ == "__main__":
-    asyncio.run(main())

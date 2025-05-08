@@ -4,7 +4,8 @@
 import os
 
 from neo4j import GraphDatabase
-from utils.logger import setup_logger
+
+from logger import setup_logger
 
 # 设置日志
 logger = setup_logger('knowledge_graph')
