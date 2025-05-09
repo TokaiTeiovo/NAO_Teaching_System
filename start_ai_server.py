@@ -101,14 +101,15 @@ async def start_server(args):
         server_context = await server.start_server()
 
         # 使用异步上下文管理器启动服务器
-        async with server_context:
-            print("服务器运行中，按Ctrl+C退出...")
-            # 保持服务器运行
-            await asyncio.Future()
+        try:
+            async with server_context:
+                print("服务器运行中，按Ctrl+C退出...")
+                # 保持服务器运行
+                await asyncio.Future()
 
-    except KeyboardInterrupt:
-        logger.info("接收到中断信号，正在关闭服务器...")
-        print("接收到中断信号，正在关闭服务器...")
+        except KeyboardInterrupt:
+            logger.info("接收到中断信号，正在关闭服务器...")
+            print("接收到中断信号，正在关闭服务器...")
     except Exception as e:
         logger.error(f"启动服务器时出错: {e}", exc_info=True)
         print(f"启动服务器时出错: {e}")

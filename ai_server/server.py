@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import asyncio
+import functools
 import json
 import queue
 import threading
@@ -551,9 +552,12 @@ class AIWebSocketServer:
             print("开始启动WebSocket服务器...")
             print(f"尝试绑定到 {self.host}:{self.port}")
 
+            # 创建一个专门的包装函数，确保接收正确的参数
+            handler = functools.partial(self.handle_client)
+
             # 保存服务器实例，以便后续可以关闭
-            self.server = websockets.serve(
-                self.handle_client,
+            server = websockets.serve(
+                handler,
                 self.host,
                 self.port,
                 ping_interval=30,
@@ -561,14 +565,14 @@ class AIWebSocketServer:
                 max_size=10 * 1024 * 1024
             )
 
-            # 使用异步上下文管理器启动服务器
-            self._server_context = self.server
+            # 保存服务器引用
+            self._server_context = server
 
             print(f"WebSocket服务器已成功启动在 {self.host}:{self.port}")
             logger.info(f"WebSocket服务器已启动: {self.host}:{self.port}")
 
             # 返回服务器引用
-            return self.server
+            return server
 
         except Exception as e:
             print(f"启动WebSocket服务器时错误: {type(e).__name__}: {e}")
@@ -596,7 +600,7 @@ class AIWebSocketServer:
                 thread.join(timeout=2.0)
 
         logger.info("所有处理线程已停止")
-        print("所有处理线程已停止")
+        #print("所有处理线程已停止")
 
     async def broadcast(self, msg_type, data):
         """
