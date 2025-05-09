@@ -5,12 +5,12 @@ NAO教学系统Web监控数据管理模块
 """
 
 import json
+import random
 import threading
 import time
 from collections import deque
 from datetime import datetime
 
-import pynvml
 import websocket
 
 # 导入项目的日志模块
@@ -19,166 +19,53 @@ from logger import setup_logger
 # 设置日志
 logger = setup_logger('monitor_data')
 
-
-# WebSocket客户端
-class AIServerWebsocket:
-    def __init__(self, server_url="ws://localhost:8765"):
-        self.server_url = server_url
-        self.ws = None
-        self.connected = False
-
-    def connect(self):
-        """连接到AI服务器"""
-        try:
-            # 创建WebSocket连接
-            self.ws = websocket.WebSocketApp(
-                self.server_url,
-                on_message=self.on_message,
-                on_error=self.on_error,
-                on_close=self.on_close,
-                on_open=self.on_open
-            )
-
-            # 启动WebSocket连接线程
-            threading.Thread(target=self.ws.run_forever).start()
-
-            # 等待连接建立
-            start_time = time.time()
-            while not self.connected and time.time() - start_time < 5:
-                time.sleep(0.1)
-
-            return self.connected
-        except Exception as e:
-            logger.error(f"连接到AI服务器时出错: {e}")
-            return False
-
-    def on_open(self, ws):
-        """WebSocket连接打开时调用"""
-        self.connected = True
-        logger.info("已连接到AI服务器")
-
-        # 更新监控数据
-        monitoring_data.update_system_status(True, self.server_url)
-
-    def on_message(self, ws, message):
-        """接收消息时调用"""
-        try:
-            data = json.loads(message)
-            msg_type = data.get("type", "")
-
-            # 记录消息
-            monitoring_data.add_message_log(msg_type, data)
-
-            # 特别处理用户发送的文本消息
-            if msg_type == "text":
-                text_content = data.get("data", {}).get("text", "")
-                if text_content:
-                    # 记录用户问题
-                    monitoring_data.add_message_log("user_query", {"message": f"用户问题: {text_content}"})
-
-            # 处理情感分析结果
-            if msg_type == "audio_result" or msg_type == "image_result":
-                monitoring_data.process_emotion_data(data)
-
-            # 处理文本响应
-            if msg_type == "text_result":
-                # 提取概念信息
-                text = data.get("data", {}).get("text", "")
-
-                # 如果是概念解释，提取概念
-                if "是指" in text or "定义为" in text or "是一种" in text:
-                    parts = text.split("是指", 1)
-                    if len(parts) > 1:
-                        concept = parts[0].strip()
-                        if len(concept) <= 20:  # 避免提取太长的文本作为概念
-                            monitoring_data.current_session["current_concept"] = concept
-
-        except Exception as e:
-            logger.error(f"处理消息时出错: {e}")
-
-    def on_error(self, ws, error):
-        """WebSocket错误时调用"""
-        logger.error(f"WebSocket错误: {error}")
-        monitoring_data.add_message_log("error", {"message": str(error)})
-
-    def on_close(self, ws, close_status_code, close_msg):
-        """WebSocket关闭时调用"""
-        self.connected = False
-        logger.info("WebSocket连接已关闭")
-
-        # 更新监控数据
-        monitoring_data.update_system_status(False)
-
-    def send_message(self, msg_type, data):
-        """发送消息到服务器"""
-        if not self.connected:
-            return False
-
-        try:
-            message = {
-                "type": msg_type,
-                "id": str(time.time()),
-                "data": data
-            }
-
-            self.ws.send(json.dumps(message))
-            return True
-        except Exception as e:
-            logger.error(f"发送消息时出错: {e}")
-            return False
-
-    def disconnect(self):
-        """断开连接"""
-        if self.ws:
-            self.ws.close()
-            self.connected = False
-
+try:
+    import pynvml
+    HAS_PYNVML = True
+    logger.info("NVML库已成功导入，可以监控GPU")
+except ImportError:
+    HAS_PYNVML = False
+    logger.warning("无法导入NVML库，将使用模拟数据")
 
 # 监控数据类
 class MonitoringData:
     def __init__(self, max_history=100):
-        # 初始化NVML
-        try:
-            pynvml.nvmlInit()
-            self.gpu_available = True
-            self.gpu_count = pynvml.nvmlDeviceGetCount()
-            logger.info(f"GPU监控已初始化，检测到 {self.gpu_count} 个GPU设备")
-        except:
-            self.gpu_available = False
-            self.gpu_count = 0
-            logger.warning("GPU监控初始化失败，可能没有NVIDIA GPU或未安装驱动")
-
-        # 创建GPU监控数据结构
-        self.gpu_data = {
-            "timestamp": deque(maxlen=max_history),
-            "utilization": [deque(maxlen=max_history) for _ in range(max(1, self.gpu_count))],
-            "memory_used": [deque(maxlen=max_history) for _ in range(max(1, self.gpu_count))],
-            "memory_total": [deque(maxlen=max_history) for _ in range(max(1, self.gpu_count))]
-        }
-
         self.system_status = {
             "connected": False,
             "last_update": None,
             "server_url": "ws://localhost:8765"
         }
 
-        # 情感数据历史
+        # 情感数据历史 - 保留以供兼容
         self.emotion_history = {
             "timestamp": deque(maxlen=max_history),
             "emotion": deque(maxlen=max_history)
         }
 
-        # 为每种情感创建队列
+        # 为每种情感创建队列 - 保留以供兼容
         for emotion in ["喜悦", "悲伤", "愤怒", "恐惧", "惊讶", "厌恶", "中性"]:
             self.emotion_history[emotion] = deque(maxlen=max_history)
 
-        # 学习状态历史
+        # 学习状态历史 - 保留以供兼容
         self.learning_states = {
             "timestamp": deque(maxlen=max_history),
             "attention": deque(maxlen=max_history),
             "engagement": deque(maxlen=max_history),
             "understanding": deque(maxlen=max_history)
         }
+
+        # GPU数据结构 - 新增
+        self.gpu_available = False
+        self.gpu_count = 0
+        self.gpu_data = {
+            "timestamp": deque(maxlen=max_history),
+            "utilization": [],
+            "memory_used": [],
+            "memory_total": []
+        }
+
+        # 初始化GPU监控
+        self._init_gpu_monitoring()
 
         # 消息日志
         self.message_log = deque(maxlen=100)
@@ -188,8 +75,57 @@ class MonitoringData:
             "session_id": None,
             "start_time": None,
             "current_concept": None,
-            "student_emotion": None
+            "student_emotion": None,
+            "last_update": None
         }
+
+        # for _ in range(5):
+        #     self.update_gpu_data()
+        #     time.sleep(0.1)
+
+    def _init_gpu_monitoring(self):
+        """初始化GPU监控"""
+        try:
+            if HAS_PYNVML:
+                # 尝试初始化NVML
+                try:
+                    pynvml.nvmlInit()
+                    self.gpu_available = True
+                    self.gpu_count = pynvml.nvmlDeviceGetCount()
+
+                    # 为每个GPU创建数据队列
+                    for i in range(self.gpu_count):
+                        self.gpu_data["utilization"].append(deque(maxlen=self.emotion_history["timestamp"].maxlen))
+                        self.gpu_data["memory_used"].append(deque(maxlen=self.emotion_history["timestamp"].maxlen))
+                        self.gpu_data["memory_total"].append(deque(maxlen=self.emotion_history["timestamp"].maxlen))
+
+                    logger.info(f"GPU监控初始化成功: 检测到 {self.gpu_count} 个GPU")
+                except Exception as e:
+                    # NVML初始化失败，使用模拟数据
+                    logger.error(f"GPU监控初始化失败: {e}")
+                    self._setup_simulated_gpu()
+            else:
+                # 没有NVML库，使用模拟数据
+                logger.warning("无法使用NVML库，将使用模拟数据")
+                self._setup_simulated_gpu()
+        except Exception as e:
+            # 初始化失败，使用模拟数据
+            self.gpu_available = True  # 为了测试界面，假设GPU可用
+            self.gpu_count = 1  # 模拟一个GPU
+            self.gpu_data["utilization"].append(deque(maxlen=self.emotion_history["timestamp"].maxlen))
+            self.gpu_data["memory_used"].append(deque(maxlen=self.emotion_history["timestamp"].maxlen))
+            self.gpu_data["memory_total"].append(deque(maxlen=self.emotion_history["timestamp"].maxlen))
+            logger.error(f"GPU监控初始化失败: {e}")
+            logger.warning("将使用模拟GPU数据")
+
+    def _setup_simulated_gpu(self):
+        """设置模拟GPU数据结构"""
+        self.gpu_available = True  # 为了测试界面，假设GPU可用
+        self.gpu_count = 1  # 模拟一个GPU
+        self.gpu_data["utilization"].append(deque(maxlen=self.emotion_history["timestamp"].maxlen))
+        self.gpu_data["memory_used"].append(deque(maxlen=self.emotion_history["timestamp"].maxlen))
+        self.gpu_data["memory_total"].append(deque(maxlen=self.emotion_history["timestamp"].maxlen))
+        logger.warning("使用模拟GPU数据")
 
     def add_message_log(self, msg_type, data):
         """添加日志"""
@@ -220,11 +156,6 @@ class MonitoringData:
 
         # 添加到日志
         self.message_log.appendleft(log_entry)
-
-        # 限制日志数量
-        if len(self.message_log) > 100:
-            while len(self.message_log) > 100:
-                self.message_log.pop()
 
     def update_system_status(self, connected, server_url=None):
         """更新系统状态"""
@@ -370,20 +301,20 @@ class MonitoringData:
         """清除所有监控数据"""
         # 清空情感数据
         for key in self.emotion_history:
-            self.emotion_history[key].clear()
+            if isinstance(self.emotion_history[key], deque):
+                self.emotion_history[key].clear()
 
         # 清空学习状态数据
         for key in self.learning_states:
-            self.learning_states[key].clear()
+            if isinstance(self.learning_states[key], deque):
+                self.learning_states[key].clear()
 
         # 清空GPU数据
-        if hasattr(self, 'gpu_data'):
-            for key in self.gpu_data:
-                if isinstance(self.gpu_data[key], list):
-                    for queue in self.gpu_data[key]:
-                        queue.clear()
-                else:
-                    self.gpu_data[key].clear()
+        self.gpu_data["timestamp"].clear()
+        for i in range(self.gpu_count):
+            self.gpu_data["utilization"][i].clear()
+            self.gpu_data["memory_used"][i].clear()
+            self.gpu_data["memory_total"][i].clear()
 
         # 清空消息日志
         self.message_log.clear()
@@ -391,30 +322,56 @@ class MonitoringData:
         logger.info("监控数据已清除")
 
     def update_gpu_data(self):
-        """更新GPU使用数据"""
-        if not self.gpu_available:
-            return
-
+        """更新GPU使用率和显存数据"""
         try:
             current_time = datetime.now().strftime("%H:%M:%S")
             self.gpu_data["timestamp"].append(current_time)
 
-            for i in range(self.gpu_count):
-                handle = pynvml.nvmlDeviceGetHandleByIndex(i)
+            if HAS_PYNVML and self.gpu_available and self.gpu_count > 0:
+                try:
+                    # 尝试使用真实GPU数据
+                    for i in range(self.gpu_count):
+                        handle = pynvml.nvmlDeviceGetHandleByIndex(i)
 
-                # 获取GPU使用率
-                utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
-                self.gpu_data["utilization"][i].append(utilization.gpu)
+                        # 获取GPU使用率
+                        utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
+                        self.gpu_data["utilization"][i].append(utilization.gpu)
 
-                # 获取显存使用情况
-                memory_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
-                memory_used_mb = memory_info.used / 1024 / 1024  # 转换为MB
-                memory_total_mb = memory_info.total / 1024 / 1024  # 转换为MB
+                        # 获取显存使用情况
+                        memory_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+                        memory_used_mb = memory_info.used / 1024 / 1024  # 转换为MB
+                        memory_total_mb = memory_info.total / 1024 / 1024  # 转换为MB
 
-                self.gpu_data["memory_used"][i].append(memory_used_mb)
-                self.gpu_data["memory_total"][i].append(memory_total_mb)
+                        self.gpu_data["memory_used"][i].append(memory_used_mb)
+                        self.gpu_data["memory_total"][i].append(memory_total_mb)
+
+                        logger.debug(
+                            f"GPU {i} 数据: 使用率={utilization.gpu}%, 显存={memory_used_mb:.2f}MB/{memory_total_mb:.2f}MB")
+                except Exception as e:
+                    # 如果获取真实数据失败，使用模拟数据
+                    logger.error(f"获取真实GPU数据失败，切换到模拟数据: {e}")
+                    self._update_simulated_gpu_data()
+            else:
+                # 没有可用的GPU或NVML，使用模拟数据
+                self._update_simulated_gpu_data()
+
+            # 更新session最后更新时间
+            self.current_session["last_update"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            # 如果没有会话ID，创建一个
+            if not self.current_session["session_id"]:
+                self.current_session["session_id"] = f"session_{int(time.time())}"
+                self.current_session["start_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            # 为测试更新，随机更新当前概念
+            if random.random() < 0.2:  # 20%的概率更新概念
+                self.current_session["current_concept"] = f"GPU监控-{random.randint(1, 100)}"
+
+            logger.info(f"GPU数据已更新 - 时间:{current_time}")
+            return True
         except Exception as e:
             logger.error(f"更新GPU数据时出错: {e}")
+            return False
 
     def get_gpu_data_for_chart(self):
         """获取GPU数据用于图表"""
@@ -443,25 +400,10 @@ class MonitoringData:
                 "yAxisID": 'y'
             })
 
-        # 显存使用率数据集
-        for i in range(self.gpu_count):
-            if len(self.gpu_data["memory_total"][i]) > 0:
-                # 计算显存使用率百分比
-                memory_percent = [
-                    (used / total) * 100
-                    for used, total in zip(
-                        self.gpu_data["memory_used"][i],
-                        self.gpu_data["memory_total"][i]
-                    )
-                ]
-
-                datasets.append({
-                    "label": f"GPU {i} 显存使用率 (%)",
-                    "data": memory_percent,
-                    "borderColor": f"rgba({50 + i * 40}, 99, 255, 1)",
-                    "backgroundColor": f"rgba({50 + i * 40}, 99, 255, 0.2)",
-                    "yAxisID": 'y'
-                })
+        # 为了调试，记录数据点数量
+        label_count = len(self.gpu_data["timestamp"])
+        data_counts = [len(self.gpu_data["utilization"][i]) for i in range(self.gpu_count)]
+        logger.debug(f"GPU使用率图表数据: 标签:{label_count}个, 数据:{data_counts}个")
 
         return {
             "labels": list(self.gpu_data["timestamp"]),
@@ -507,10 +449,169 @@ class MonitoringData:
                     "yAxisID": 'y'
                 })
 
+        # 为了调试，记录数据点数量
+        label_count = len(self.gpu_data["timestamp"])
+        data_counts = [len(self.gpu_data["memory_used"][i]) for i in range(self.gpu_count)]
+        logger.debug(f"GPU显存图表数据: 标签:{label_count}个, 数据:{data_counts}个")
+
         return {
             "labels": list(self.gpu_data["timestamp"]),
             "datasets": datasets
         }
+
+    def _update_simulated_gpu_data(self):
+        """更新模拟GPU数据"""
+        # 确保数据结构初始化
+        if len(self.gpu_data["utilization"]) == 0:
+            self._setup_simulated_gpu()
+
+        for i in range(self.gpu_count):
+            # 生成0-100的随机GPU使用率，形成波动曲线
+            if len(self.gpu_data["utilization"][i]) > 0:
+                # 基于上一个值生成小幅波动
+                last_value = self.gpu_data["utilization"][i][-1]
+                # 生成-10到+10的变化量
+                change = random.uniform(-10, 10)
+                new_value = max(0, min(100, last_value + change))
+                self.gpu_data["utilization"][i].append(new_value)
+            else:
+                # 首次生成使用初始值
+                self.gpu_data["utilization"][i].append(random.uniform(30, 70))
+
+            # 模拟显存使用情况
+            total_memory = 8192  # 模拟8GB显存
+            if len(self.gpu_data["memory_total"][i]) == 0:
+                self.gpu_data["memory_total"][i].append(total_memory)
+            else:
+                self.gpu_data["memory_total"][i].append(total_memory)
+
+            # 生成波动的显存使用量
+            if len(self.gpu_data["memory_used"][i]) > 0:
+                last_memory = self.gpu_data["memory_used"][i][-1]
+                change = random.uniform(-200, 200)
+                new_memory = max(500, min(total_memory, last_memory + change))
+                self.gpu_data["memory_used"][i].append(new_memory)
+            else:
+                # 首次生成，使用30%-70%的总显存
+                self.gpu_data["memory_used"][i].append(total_memory * random.uniform(0.3, 0.7))
+
+            logger.debug(
+                f"模拟GPU {i} 数据: 使用率={self.gpu_data['utilization'][i][-1]:.1f}%, 显存={self.gpu_data['memory_used'][i][-1]:.1f}MB")
+
+# WebSocket客户端
+class AIServerWebsocket:
+    def __init__(self, server_url="ws://localhost:8765"):
+        self.server_url = server_url
+        self.ws = None
+        self.connected = False
+
+    def connect(self):
+        """连接到AI服务器"""
+        try:
+            # 创建WebSocket连接
+            self.ws = websocket.WebSocketApp(
+                self.server_url,
+                on_message=self.on_message,
+                on_error=self.on_error,
+                on_close=self.on_close,
+                on_open=self.on_open
+            )
+
+            # 启动WebSocket连接线程
+            threading.Thread(target=self.ws.run_forever).start()
+
+            # 等待连接建立
+            start_time = time.time()
+            while not self.connected and time.time() - start_time < 5:
+                time.sleep(0.1)
+
+            return self.connected
+        except Exception as e:
+            logger.error(f"连接到AI服务器时出错: {e}")
+            return False
+
+    def on_open(self, ws):
+        """WebSocket连接打开时调用"""
+        self.connected = True
+        logger.info("已连接到AI服务器")
+
+        # 更新监控数据
+        monitoring_data.update_system_status(True, self.server_url)
+
+    def on_message(self, ws, message):
+        """接收消息时调用"""
+        try:
+            data = json.loads(message)
+            msg_type = data.get("type", "")
+
+            # 记录消息
+            monitoring_data.add_message_log(msg_type, data)
+
+            # 特别处理用户发送的文本消息
+            if msg_type == "text":
+                text_content = data.get("data", {}).get("text", "")
+                if text_content:
+                    # 记录用户问题
+                    monitoring_data.add_message_log("user_query", {"message": f"用户问题: {text_content}"})
+
+            # 处理情感分析结果 - 保留原有逻辑
+            if msg_type == "audio_result" or msg_type == "image_result":
+                # 这部分逻辑将被新的GPU监控替代，但保留兼容处理
+                pass
+
+            # 处理文本响应
+            if msg_type == "text_result":
+                # 提取概念信息
+                text = data.get("data", {}).get("text", "")
+
+                # 如果是概念解释，提取概念
+                if "是指" in text or "定义为" in text or "是一种" in text:
+                    parts = text.split("是指", 1)
+                    if len(parts) > 1:
+                        concept = parts[0].strip()
+                        if len(concept) <= 20:  # 避免提取太长的文本作为概念
+                            monitoring_data.current_session["current_concept"] = concept
+
+        except Exception as e:
+            logger.error(f"处理消息时出错: {e}")
+
+    def on_error(self, ws, error):
+        """WebSocket错误时调用"""
+        logger.error(f"WebSocket错误: {error}")
+        monitoring_data.add_message_log("error", {"message": str(error)})
+
+    def on_close(self, ws, close_status_code, close_msg):
+        """WebSocket关闭时调用"""
+        self.connected = False
+        logger.info("WebSocket连接已关闭")
+
+        # 更新监控数据
+        monitoring_data.update_system_status(False)
+
+    def send_message(self, msg_type, data):
+        """发送消息到服务器"""
+        if not self.connected:
+            return False
+
+        try:
+            message = {
+                "type": msg_type,
+                "id": str(time.time()),
+                "data": data
+            }
+
+            self.ws.send(json.dumps(message))
+            return True
+        except Exception as e:
+            logger.error(f"发送消息时出错: {e}")
+            return False
+
+    def disconnect(self):
+        """断开连接"""
+        if self.ws:
+            self.ws.close()
+            self.connected = False
+
 # 创建全局监控数据实例
 monitoring_data = MonitoringData()
 

@@ -36,15 +36,46 @@ def status():
 @web_monitor_bp.route('/api/gpu_usage')
 def gpu_usage():
     """获取GPU使用率数据"""
-    # 更新GPU数据
-    monitoring_data.update_gpu_data()
-    return jsonify(monitoring_data.get_gpu_data_for_chart())
-
+    try:
+        # 强制更新GPU数据
+        monitoring_data.update_gpu_data()
+        gpu_data = monitoring_data.get_gpu_data_for_chart()
+        logger.debug(f"生成GPU使用率数据: {len(gpu_data.get('labels', []))} 个时间点")
+        return jsonify(gpu_data)
+    except Exception as e:
+        logger.error(f"获取GPU使用率数据时出错: {e}")
+        # 返回一个空的但有效的数据结构
+        return jsonify({
+            "labels": [],
+            "datasets": [{
+                "label": "GPU数据获取错误",
+                "data": [],
+                "borderColor": "rgba(255, 99, 132, 1)",
+                "backgroundColor": "rgba(255, 99, 132, 0.2)"
+            }]
+        })
 
 @web_monitor_bp.route('/api/gpu_memory')
 def gpu_memory():
     """获取GPU显存数据"""
-    return jsonify(monitoring_data.get_gpu_memory_for_chart())
+    try:
+        # 使用已经更新的GPU数据
+        memory_data = monitoring_data.get_gpu_memory_for_chart()
+        logger.debug(f"生成GPU显存数据: {len(memory_data.get('labels', []))} 个时间点")
+        return jsonify(memory_data)
+    except Exception as e:
+        logger.error(f"获取GPU显存数据时出错: {e}")
+        # 返回一个空的但有效的数据结构
+        return jsonify({
+            "labels": [],
+            "datasets": [{
+                "label": "GPU显存数据获取错误",
+                "data": [],
+                "borderColor": "rgba(54, 162, 235, 1)",
+                "backgroundColor": "rgba(54, 162, 235, 0.2)"
+            }]
+        })
+
 
 
 @web_monitor_bp.route('/api/logs')
@@ -56,16 +87,19 @@ def logs():
 @web_monitor_bp.route('/api/session')
 def session():
     """获取当前会话信息"""
-    # 添加一些示例数据以演示会话信息更新
-    monitoring_data.current_session["last_update"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    if not monitoring_data.current_session["session_id"]:
-        monitoring_data.current_session["session_id"] = f"session_{int(time.time())}"
-
-    if not monitoring_data.current_session["start_time"]:
-        monitoring_data.current_session["start_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    return jsonify(monitoring_data.current_session)
+    try:
+        # 会话信息已在update_gpu_data中更新
+        logger.debug(f"会话信息: {monitoring_data.current_session}")
+        return jsonify(monitoring_data.current_session)
+    except Exception as e:
+        logger.error(f"获取会话信息时出错: {e}")
+        # 返回默认会话信息
+        return jsonify({
+            "session_id": "error_session",
+            "start_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "current_concept": "数据获取错误",
+            "last_update": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        })
 
 @web_monitor_bp.route('/api/connect', methods=['POST'])
 def connect_to_server():

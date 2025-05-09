@@ -142,8 +142,11 @@
 
         // 页面加载完成后执行
         document.addEventListener('DOMContentLoaded', function() {
+            console.log('页面加载完成，开始初始化...');
+
             // 初始化图表
             initCharts();
+            console.log('图表初始化完成');
 
             // 绑定按钮事件
             document.getElementById('connect-btn').addEventListener('click', connectToServer);
@@ -156,25 +159,64 @@
                 }
             });
 
-            // 加载初始数据
-            loadStatus();
-            loadSession();
-            loadLogs();
-            loadGpuUsageData();
-            loadGpuMemoryData();
+            // 集中加载所有数据的函数
+            function loadAllData() {
+                const timestamp = new Date().toLocaleTimeString();
+                console.log(`开始加载所有数据: ${timestamp}`);
 
-            // 定时刷新数据
-            setInterval(function() {
+                // 首先加载状态和会话信息
                 loadStatus();
                 loadSession();
+
+                // 然后加载日志
                 loadLogs();
+
+                // 最后加载GPU数据
                 loadGpuUsageData();
                 loadGpuMemoryData();
-            }, 2000);
+
+                console.log(`所有数据加载请求已发送: ${timestamp}`);
+            }
+
+            // 立即加载初始数据
+            console.log('开始加载初始数据...');
+            loadAllData();
+            console.log('初始数据加载请求已发送');
+
+            // 创建定时器，每2秒更新一次数据
+            console.log('设置数据更新定时器...');
+            window.updateTimer = setInterval(loadAllData, 2000);
+            console.log('定时器已设置，将每2秒更新一次数据');
+
+            // 添加页面可见性监听器
+            document.addEventListener('visibilitychange', function() {
+                if (document.hidden) {
+                    // 页面不可见时，停止更新
+                    clearInterval(window.updateTimer);
+                    console.log('页面不可见，已暂停更新');
+                } else {
+                    // 页面重新可见时，立即加载数据并重启定时器
+                    console.log('页面重新可见，恢复更新');
+                    loadAllData();
+                    window.updateTimer = setInterval(loadAllData, 2000);
+                }
+            });
+
+            console.log('页面初始化完成，等待数据更新...');
         });
 
         // 初始化图表
         function initCharts() {
+            console.log('初始化图表...');
+
+            // 销毁可能存在的旧图表
+            if (window.gpuUsageChart instanceof Chart) {
+                window.gpuUsageChart.destroy();
+            }
+            if (window.gpuMemoryChart instanceof Chart) {
+                window.gpuMemoryChart.destroy();
+            }
+
             // 初始化GPU使用率图表
             const gpuUsageCtx = document.getElementById('gpu-usage-chart').getContext('2d');
             gpuUsageChart = new Chart(gpuUsageCtx, {
@@ -186,6 +228,9 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    animation: {
+                        duration: 500  // 减少动画时间提高性能
+                    },
                     interaction: {
                         mode: 'index',
                         intersect: false
@@ -214,6 +259,9 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    animation: {
+                        duration: 500
+                    },
                     interaction: {
                         mode: 'index',
                         intersect: false
@@ -385,9 +433,14 @@
 
         // 加载会话信息
         function loadSession() {
+            console.log('开始请求会话信息...');
             fetch('/api/session')
-                .then(response => response.json())
+                .then(response => {
+                    console.log('会话信息响应状态:', response.status);
+                    return response.json();
+                })
                 .then(data => {
+                    console.log('会话信息已获取:', Object.keys(data));
                     updateSession(data);
                 })
                 .catch(error => {
@@ -402,22 +455,12 @@
             const currentConcept = document.getElementById('current-concept');
             const lastUpdate = document.getElementById('session-last-update');
 
-            sessionId.textContent = data.session_id || '无';
-            sessionStart.textContent = data.start_time || '无';
-            currentConcept.textContent = data.current_concept || '无';
+            if (sessionId) sessionId.textContent = data.session_id || '无';
+            if (sessionStart) sessionStart.textContent = data.start_time || '无';
+            if (currentConcept) currentConcept.textContent = data.current_concept || '无';
+            if (lastUpdate) lastUpdate.textContent = data.last_update || '无';
 
-            // 添加最后更新时间显示
-            if (lastUpdate) {
-                lastUpdate.textContent = data.last_update || '无';
-            } else {
-                // 如果元素不存在，则在会话信息卡片中添加
-                const sessionCard = document.querySelector('.card:nth-child(2) .card-body');
-                if (sessionCard) {
-                    const lastUpdateDiv = document.createElement('div');
-                    lastUpdateDiv.innerHTML = `<strong>最后更新:</strong> <span id="session-last-update">${data.last_update || '无'}</span>`;
-                    sessionCard.appendChild(lastUpdateDiv);
-                }
-            }
+            console.log('会话信息已更新:', data);
         }
 
         // 加载日志
@@ -489,9 +532,14 @@
 
         // 加载GPU使用率
         function loadGpuUsageData() {
+            console.log('正在请求GPU使用率数据...');
             fetch('/api/gpu_usage')
-                .then(response => response.json())
+                .then(response => {
+                    console.log('GPU使用率响应状态:', response.status);
+                    return response.json();
+                })
                 .then(data => {
+                    console.log('GPU使用率数据已获取，时间点数:', data.labels ? data.labels.length : 0);
                     updateGpuUsageChart(data);
                 })
                 .catch(error => {
@@ -501,9 +549,14 @@
 
         // 加载GPU显存
         function loadGpuMemoryData() {
+            console.log('正在请求GPU显存数据...');
             fetch('/api/gpu_memory')
-                .then(response => response.json())
+                .then(response => {
+                    console.log('GPU显存响应状态:', response.status);
+                    return response.json();
+                })
                 .then(data => {
+                    console.log('GPU显存数据已获取，时间点数:', data.labels ? data.labels.length : 0);
                     updateGpuMemoryChart(data);
                 })
                 .catch(error => {
@@ -512,17 +565,28 @@
         }
 
         function updateGpuUsageChart(data) {
-            // 更新图表数据
+            if (!data.labels || !data.datasets) {
+                console.error('无效的GPU使用率数据');
+                return;
+            }
+
             gpuUsageChart.data.labels = data.labels;
             gpuUsageChart.data.datasets = data.datasets;
             gpuUsageChart.update();
+            console.log('GPU使用率图表已更新，数据点数:', data.labels.length);
         }
 
+
         function updateGpuMemoryChart(data) {
-            // 更新图表数据
+            if (!data.labels || !data.datasets) {
+                console.error('无效的GPU显存数据');
+                return;
+            }
+
             gpuMemoryChart.data.labels = data.labels;
             gpuMemoryChart.data.datasets = data.datasets;
             gpuMemoryChart.update();
+            console.log('GPU显存图表已更新，数据点数:', data.labels.length);
         }
 
     </script>

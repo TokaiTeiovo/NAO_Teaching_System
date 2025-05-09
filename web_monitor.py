@@ -19,6 +19,7 @@ from flask import Flask, render_template, jsonify, request, redirect
 
 # 设置日志
 from logger import setup_logger
+from web_monitor.monitor_data import monitoring_data, ws_client
 
 # 设置日志
 logger = setup_logger('web_monitor', log_level="WARNING")  # 改为WARNING级别减少输出
@@ -403,8 +404,8 @@ def save():
 # 启动函数
 def main():
     parser = argparse.ArgumentParser(description="NAO教学系统Web监控")
-    parser.add_argument("--host", default="0.0.0.0", help="主机地址")
-    parser.add_argument("--port", type=int, default=5000, help="端口号")
+    parser.add_argument("--host", default="127.0.0.1", help="主机地址")
+    parser.add_argument("--port", type=int, default=5050, help="端口号")
     parser.add_argument("--debug", action="store_true", help="启用调试模式")
 
     args = parser.parse_args()
@@ -412,20 +413,22 @@ def main():
     logger.info(f"启动Web监控服务器: http://{args.host}:{args.port}/")
     #print(f"Web监控服务器已启动: http://{args.host}:{args.port}/")
 
-    # 启动Flask应用
-    app.run(host=args.host, port=args.port, debug=args.debug)
+    # 配置Flask应用
+    app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # 禁用静态文件缓存
+    app.config['TEMPLATES_AUTO_RELOAD'] = True   # 启用模板自动重新加载
 
     try:
+        # 启动Flask应用
         app.run(host=args.host, port=args.port, debug=args.debug)
     finally:
         # 关闭NVML
-        if hasattr(monitoring_data, 'gpu_available') and monitoring_data.gpu_available:
-            try:
-                import pynvml
+        try:
+            import pynvml
+            if 'nvmlShutdown' in dir(pynvml):
                 pynvml.nvmlShutdown()
                 logger.info("NVML已关闭")
-            except:
-                pass
+        except:
+            pass
 
 if __name__ == "__main__":
     main()
