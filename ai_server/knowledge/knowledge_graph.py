@@ -37,6 +37,8 @@ class KnowledgeGraph:
         """
         连接到Neo4j数据库
         """
+        self.driver = None  # 初始化为None
+
         try:
             self.driver = GraphDatabase.driver(
                 self.uri,
@@ -49,9 +51,10 @@ class KnowledgeGraph:
                 logger.info("数据库为空，将进行初始化")
                 self.init_knowledge_graph()
 
+
         except Exception as e:
             logger.error(f"连接Neo4j数据库时出错: {e}", exc_info=True)
-            self.driver = None
+            logger.warning("系统将继续运行，但知识图谱功能将不可用")
 
     def close(self):
         """
@@ -68,10 +71,14 @@ class KnowledgeGraph:
         if not self.driver:
             return True
 
-        with self.driver.session() as session:
-            result = session.run("MATCH (n) RETURN count(n) AS count")
-            count = result.single()["count"]
-            return count == 0
+        try:
+            with self.driver.session() as session:
+                result = session.run("MATCH (n) RETURN count(n) AS count")
+                count = result.single()["count"]
+                return count == 0
+        except Exception as e:
+            logger.error(f"检查数据库是否为空时出错: {e}")
+            return True  # 出错时假设为空
 
     def init_knowledge_graph(self):
         """

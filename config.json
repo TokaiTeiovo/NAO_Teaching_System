@@ -16,7 +16,7 @@
   },
   "knowledge": {
     "neo4j": {
-      "uri": "bolt://localhost:7687",
+      "uri": "bolt://127.0.0.1:7687",
       "user": "neo4j",
       "password": "admin123"
     },

@@ -18,8 +18,10 @@ import websocket
 from flask import Flask, render_template, jsonify, request, redirect
 
 # 设置日志
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger('web_monitor')
+from logger import setup_logger
+
+# 设置日志
+logger = setup_logger('web_monitor', log_level="WARNING")  # 改为WARNING级别减少输出
 
 # 创建Flask应用
 app = Flask(__name__,
@@ -27,6 +29,9 @@ app = Flask(__name__,
             template_folder=os.path.join(os.path.dirname(__file__), 'web_monitor/templates'))
 app.config['SECRET_KEY'] = 'nao-teaching-system-secret-key'
 
+# 抑制Flask和Werkzeug的日志输出
+app.logger.setLevel(logging.WARNING)
+logging.getLogger('werkzeug').setLevel(logging.WARNING)
 
 # 监控数据
 class MonitoringData:
@@ -405,7 +410,7 @@ def main():
     args = parser.parse_args()
 
     logger.info(f"启动Web监控服务器: http://{args.host}:{args.port}/")
-    print(f"Web监控服务器已启动: http://{args.host}:{args.port}/")
+    #print(f"Web监控服务器已启动: http://{args.host}:{args.port}/")
 
     # 启动Flask应用
     app.run(host=args.host, port=args.port, debug=args.debug)

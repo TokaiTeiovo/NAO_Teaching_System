@@ -1,13 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import eventlet
-
-eventlet.monkey_patch()
+# import eventlet
+# eventlet.monkey_patch()
 
 import argparse
 import asyncio
-import sys
 import os
+import sys
 
 # 导入项目的日志模块
 from ai_server.logger import setup_logger
@@ -37,11 +36,11 @@ def start_web_monitor_process(web_host, web_port):
         ])
 
         logger.info(f"Web监控服务已在独立进程中启动: PID={web_process.pid}")
-        print(f"Web监控服务已启动: http://{web_host}:{web_port}/")
+        logger.info(f"Web监控服务已启动: http://{web_host}:{web_port}/")
         return web_process
     except Exception as e:
         logger.error(f"启动Web监控服务时出错: {e}")
-        print(f"启动Web监控服务时出错: {e}")
+        #print(f"启动Web监控服务时出错: {e}")
         return None
 
 
@@ -64,7 +63,7 @@ async def start_server(args):
 
         # 初始化各个组件
         logger.info("初始化知识图谱...")
-        print("正在连接知识图谱数据库...")
+        logger.info("正在连接知识图谱数据库...")
         kg = KnowledgeGraph(config)
 
         logger.info("初始化情感融合模块...")
@@ -74,9 +73,9 @@ async def start_server(args):
         recommender = KnowledgeRecommender(kg, config)
 
         logger.info("初始化大语言模型...")
-        print("正在加载大语言模型，这可能需要几分钟...")
+        logger.info("正在加载大语言模型，这可能需要几分钟...")
         llm = LLMModel(config)
-        print("大语言模型已加载完成")
+        logger.info("大语言模型已加载完成")
 
         logger.info("初始化对话管理器...")
         conversation = ConversationManager(llm)
@@ -97,22 +96,22 @@ async def start_server(args):
         )
 
         # 启动WebSocket服务器
-        print(f"正在启动WebSocket服务器: {args.host}:{args.port}")
+        logger.info(f"正在启动WebSocket服务器: {args.host}:{args.port}")
         server_context = await server.start_server()
 
         # 使用异步上下文管理器启动服务器
         try:
             async with server_context:
-                print("服务器运行中，按Ctrl+C退出...")
+                logger.info("服务器运行中，按Ctrl+C退出...")
                 # 保持服务器运行
                 await asyncio.Future()
 
         except KeyboardInterrupt:
             logger.info("接收到中断信号，正在关闭服务器...")
-            print("接收到中断信号，正在关闭服务器...")
+            #print("接收到中断信号，正在关闭服务器...")
     except Exception as e:
         logger.error(f"启动服务器时出错: {e}", exc_info=True)
-        print(f"启动服务器时出错: {e}")
+        #print(f"启动服务器时出错: {e}")
     finally:
         # 停止服务器
         if 'server' in locals() and hasattr(server, 'stop_server'):
@@ -122,7 +121,7 @@ async def start_server(args):
         if 'kg' in locals() and hasattr(kg, 'close'):
             kg.close()
 
-        print("服务器已停止")
+        logger.info("服务器已停止")
 
 
 if __name__ == "__main__":
@@ -132,36 +131,36 @@ if __name__ == "__main__":
 
     # Web监控相关参数
     parser.add_argument("--web-monitor", action="store_true", help="启动Web监控界面")
-    parser.add_argument("--web-host", type=str, default="0.0.0.0", help="Web监控主机地址")
+    parser.add_argument("--web-host", type=str, default="127.0.0.1", help="Web监控主机地址")
     parser.add_argument("--web-port", type=int, default=5000, help="Web监控端口号")
 
     args = parser.parse_args()
 
-    print("解析命令行参数完成")
-    print(f"主机: {args.host}, 端口: {args.port}")
-    print(f"Web监控: {'启用' if args.web_monitor else '禁用'}")
+    logger.info("解析命令行参数完成")
+    logger.info(f"主机: {args.host}, 端口: {args.port}")
+    logger.info(f"Web监控: {'启用' if args.web_monitor else '禁用'}")
 
     # 启动Web监控(如果需要)
     web_process = None
     if args.web_monitor:
-        print(f"正在启动Web监控: {args.web_host}:{args.web_port}")
+        logger.info(f"正在启动Web监控: {args.web_host}:{args.web_port}")
         web_process = start_web_monitor_process(args.web_host, args.web_port)
 
     # 启动AI服务器
     try:
-        print("正在启动AI服务器...")
+        logger.info("正在启动AI服务器...")
         asyncio.run(start_server(args))
     except KeyboardInterrupt:
-        print("程序被用户中断")
+        logger.info("程序被用户中断")
     except Exception as e:
-        print(f"程序运行出错: {e}")
+        logger.error(f"程序运行出错: {e}")
     finally:
         # 终止Web监控进程(如果存在)
         if web_process:
             try:
                 web_process.terminate()
-                print("Web监控服务已停止")
+                logger.info("Web监控服务已停止")
             except:
                 pass
 
-        print("程序已退出")
+        logger.info("程序已退出")

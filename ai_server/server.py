@@ -2,10 +2,9 @@
 # -*- coding: utf-8 -*-
 
 import asyncio
+import concurrent.futures
 import functools
 import json
-import queue
-import threading
 import time
 from base64 import b64decode
 
@@ -61,70 +60,40 @@ class AIWebSocketServer:
             "command": self.handle_command
         }
 
-        # 创建任务队列及处理线程
-        self.task_queue = queue.Queue()
-        self.processing_threads = []
+        # 使用ThreadPoolExecutor替代自定义线程池
+        self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=3)
         self.running = True
 
+        # 创建任务队列及处理线程
+        # self.task_queue = queue.Queue()
+        # self.processing_threads = []
+        # self.running = True
+
         # 启动处理线程池
-        self._start_processing_threads(num_threads=3)
+        # self._start_processing_threads(num_threads=3)
 
         # 记录服务器初始化
         logger.info(f"AI服务器初始化完成: {host}:{port}")
 
-    def _start_processing_threads(self, num_threads=3):
-        """启动多个处理线程来处理任务队列"""
-        for i in range(num_threads):
-            thread = threading.Thread(target=self._process_task_loop)
-            thread.daemon = True
-            thread.start()
-            self.processing_threads.append(thread)
-            logger.info(f"启动处理线程 {i + 1}")
+    def process_task(self, task_type, client_id, msg_id, data):
+        """处理任务并返回结果"""
+        try:
+            # 根据任务类型处理
+            if task_type == "audio":
+                result = self._process_audio(data)
+            elif task_type == "image":
+                result = self._process_image(data)
+            elif task_type == "text":
+                result = self._process_text(data)
+            elif task_type == "command":
+                result = self._process_command(data)
+            else:
+                result = {"error": f"未知任务类型: {task_type}"}
 
-    def _process_task_loop(self):
-        """任务处理循环"""
-        while self.running:
-            try:
-                task = self.task_queue.get(timeout=1.0)
-                if task is None:  # 停止信号
-                    break
-
-                try:
-                    task_type, client_id, msg_id, data = task
-
-                    # 根据任务类型处理
-                    if task_type == "audio":
-                        result = self._process_audio(data)
-                    elif task_type == "image":
-                        result = self._process_image(data)
-                    elif task_type == "text":
-                        result = self._process_text(data)
-                    elif task_type == "command":
-                        result = self._process_command(data)
-                    else:
-                        result = {"error": f"未知任务类型: {task_type}"}
-
-                    # 将结果放入响应队列
-                    asyncio.run_coroutine_threadsafe(
-                        self.send_response(client_id, msg_id, f"{task_type}_result", result),
-                        asyncio.get_event_loop()
-                    )
-
-                except Exception as e:
-                    logger.error(f"处理任务时出错: {str(e)}", exc_info=True)
-                    # 发送错误响应
-                    asyncio.run_coroutine_threadsafe(
-                        self.send_error(client_id, msg_id, "处理失败", str(e)),
-                        asyncio.get_event_loop()
-                    )
-
-                finally:
-                    self.task_queue.task_done()
-
-            except queue.Empty:
-                continue
-            except Exception as e:
-                logger.error(f"任务处理线程错误: {str(e)}", exc_info=True)
+            return client_id, msg_id, f"{task_type}_result", result
+        except Exception as e:
+            logger.error(f"处理任务时出错: {str(e)}", exc_info=True)
+            return client_id, msg_id, "error", {"error_type": "处理失败", "message": str(e)}
 
     def _process_audio(self, data):
         """
@@ -362,7 +331,19 @@ class AIWebSocketServer:
             logger.error(f"处理命令时出错: {str(e)}", exc_info=True)
             return {"error": f"处理命令时出错: {str(e)}"}
 
-    async def handle_client(self, websocket, path):
+    async def handle_task_result(self, future):
+        """处理任务结果"""
+        try:
+            client_id, msg_id, response_type, data = future.result()
+
+            if response_type == "error":
+                await self.send_error(client_id, msg_id, data.get("error_type", "未知错误"), data.get("message", ""))
+            else:
+                await self.send_response(client_id, msg_id, response_type, data)
+        except Exception as e:
+            logger.error(f"处理任务结果时出错: {str(e)}", exc_info=True)
+
+    async def handle_client(self, websocket):
         """
         处理客户端连接
 
@@ -446,8 +427,10 @@ class AIWebSocketServer:
             msg_id: 消息ID
             data: 消息数据
         """
-        # 将任务添加到处理队列
-        self.task_queue.put(("audio", client_id, msg_id, data))
+        # 提交任务到线程池
+        future = self.executor.submit(self.process_task, "audio", client_id, msg_id, data)
+        # 添加回调以在任务完成时处理结果
+        asyncio.create_task(self.handle_task_result(future))
 
     async def handle_image(self, client_id, msg_id, data):
         """
@@ -458,8 +441,8 @@ class AIWebSocketServer:
             msg_id: 消息ID
             data: 消息数据
         """
-        # 将任务添加到处理队列
-        self.task_queue.put(("image", client_id, msg_id, data))
+        future = self.executor.submit(self.process_task, "image", client_id, msg_id, data)
+        asyncio.create_task(self.handle_task_result(future))
 
     async def handle_text(self, client_id, msg_id, data):
         """
@@ -471,7 +454,8 @@ class AIWebSocketServer:
             data: 消息数据
         """
         # 将任务添加到处理队列
-        self.task_queue.put(("text", client_id, msg_id, data))
+        future = self.executor.submit(self.process_task, "text", client_id, msg_id, data)
+        asyncio.create_task(self.handle_task_result(future))
 
     async def handle_command(self, client_id, msg_id, data):
         """
@@ -483,7 +467,8 @@ class AIWebSocketServer:
             data: 消息数据
         """
         # 将任务添加到处理队列
-        self.task_queue.put(("command", client_id, msg_id, data))
+        future = self.executor.submit(self.process_task, "command", client_id, msg_id, data)
+        asyncio.create_task(self.handle_task_result(future))
 
     async def send_response(self, client_id, msg_id, response_type, data):
         """
@@ -549,8 +534,8 @@ class AIWebSocketServer:
     async def start_server(self):
         """启动WebSocket服务器（适用于websockets 15.0.1）"""
         try:
-            print("开始启动WebSocket服务器...")
-            print(f"尝试绑定到 {self.host}:{self.port}")
+            logger.info("开始启动WebSocket服务器...")
+            logger.info(f"尝试绑定到 {self.host}:{self.port}")
 
             # 创建一个专门的包装函数，确保接收正确的参数
             handler = functools.partial(self.handle_client)
@@ -568,36 +553,30 @@ class AIWebSocketServer:
             # 保存服务器引用
             self._server_context = server
 
-            print(f"WebSocket服务器已成功启动在 {self.host}:{self.port}")
+            #print(f"WebSocket服务器已成功启动在 {self.host}:{self.port}")
             logger.info(f"WebSocket服务器已启动: {self.host}:{self.port}")
 
             # 返回服务器引用
             return server
 
         except Exception as e:
-            print(f"启动WebSocket服务器时错误: {type(e).__name__}: {e}")
-            logger.error(f"启动服务器时出错: {str(e)}", exc_info=True)
+            #print(f"启动WebSocket服务器时错误: {type(e).__name__}: {e}")
+            logger.error(f"启动WebSocket服务器时出错: {str(e)}", exc_info=True)
             raise
 
     async def stop_server(self):
-        """停止WebSocket服务器（适用于websockets 15.0.1）"""
+        """停止WebSocket服务器"""
         if hasattr(self, '_server_context') and self._server_context:
             # 在新版本中停止服务器的不同方式
             if hasattr(self._server_context, 'close'):
                 self._server_context.close()
 
-            print("WebSocket服务器已停止")
+            #print("WebSocket服务器已停止")
             logger.info("WebSocket服务器已停止")
 
-        # 停止处理线程
+        # 停止线程池
         self.running = False
-        for _ in self.processing_threads:
-            self.task_queue.put(None)  # 发送停止信号
-
-        # 等待所有线程结束
-        for thread in self.processing_threads:
-            if thread.is_alive():
-                thread.join(timeout=2.0)
+        self.executor.shutdown(wait=False)  # 非阻塞方式关闭
 
         logger.info("所有处理线程已停止")
         #print("所有处理线程已停止")
