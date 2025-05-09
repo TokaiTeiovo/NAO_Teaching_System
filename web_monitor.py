@@ -415,6 +415,17 @@ def main():
     # 启动Flask应用
     app.run(host=args.host, port=args.port, debug=args.debug)
 
+    try:
+        app.run(host=args.host, port=args.port, debug=args.debug)
+    finally:
+        # 关闭NVML
+        if hasattr(monitoring_data, 'gpu_available') and monitoring_data.gpu_available:
+            try:
+                import pynvml
+                pynvml.nvmlShutdown()
+                logger.info("NVML已关闭")
+            except:
+                pass
 
 if __name__ == "__main__":
     main()

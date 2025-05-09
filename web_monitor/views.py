@@ -33,16 +33,18 @@ def status():
     return jsonify(monitoring_data.system_status)
 
 
-@web_monitor_bp.route('/api/emotion_data')
-def emotion_data():
-    """获取情感数据"""
-    return jsonify(monitoring_data.get_emotion_data_for_chart())
+@web_monitor_bp.route('/api/gpu_usage')
+def gpu_usage():
+    """获取GPU使用率数据"""
+    # 更新GPU数据
+    monitoring_data.update_gpu_data()
+    return jsonify(monitoring_data.get_gpu_data_for_chart())
 
 
-@web_monitor_bp.route('/api/learning_data')
-def learning_data():
-    """获取学习状态数据"""
-    return jsonify(monitoring_data.get_learning_data_for_chart())
+@web_monitor_bp.route('/api/gpu_memory')
+def gpu_memory():
+    """获取GPU显存数据"""
+    return jsonify(monitoring_data.get_gpu_memory_for_chart())
 
 
 @web_monitor_bp.route('/api/logs')
@@ -54,8 +56,16 @@ def logs():
 @web_monitor_bp.route('/api/session')
 def session():
     """获取当前会话信息"""
-    return jsonify(monitoring_data.current_session)
+    # 添加一些示例数据以演示会话信息更新
+    monitoring_data.current_session["last_update"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+    if not monitoring_data.current_session["session_id"]:
+        monitoring_data.current_session["session_id"] = f"session_{int(time.time())}"
+
+    if not monitoring_data.current_session["start_time"]:
+        monitoring_data.current_session["start_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    return jsonify(monitoring_data.current_session)
 
 @web_monitor_bp.route('/api/connect', methods=['POST'])
 def connect_to_server():

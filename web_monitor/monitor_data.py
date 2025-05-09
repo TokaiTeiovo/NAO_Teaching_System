@@ -10,6 +10,7 @@ import time
 from collections import deque
 from datetime import datetime
 
+import pynvml
 import websocket
 
 # 导入项目的日志模块
@@ -136,6 +137,25 @@ class AIServerWebsocket:
 # 监控数据类
 class MonitoringData:
     def __init__(self, max_history=100):
+        # 初始化NVML
+        try:
+            pynvml.nvmlInit()
+            self.gpu_available = True
+            self.gpu_count = pynvml.nvmlDeviceGetCount()
+            logger.info(f"GPU监控已初始化，检测到 {self.gpu_count} 个GPU设备")
+        except:
+            self.gpu_available = False
+            self.gpu_count = 0
+            logger.warning("GPU监控初始化失败，可能没有NVIDIA GPU或未安装驱动")
+
+        # 创建GPU监控数据结构
+        self.gpu_data = {
+            "timestamp": deque(maxlen=max_history),
+            "utilization": [deque(maxlen=max_history) for _ in range(max(1, self.gpu_count))],
+            "memory_used": [deque(maxlen=max_history) for _ in range(max(1, self.gpu_count))],
+            "memory_total": [deque(maxlen=max_history) for _ in range(max(1, self.gpu_count))]
+        }
+
         self.system_status = {
             "connected": False,
             "last_update": None,
@@ -356,12 +376,141 @@ class MonitoringData:
         for key in self.learning_states:
             self.learning_states[key].clear()
 
+        # 清空GPU数据
+        if hasattr(self, 'gpu_data'):
+            for key in self.gpu_data:
+                if isinstance(self.gpu_data[key], list):
+                    for queue in self.gpu_data[key]:
+                        queue.clear()
+                else:
+                    self.gpu_data[key].clear()
+
         # 清空消息日志
         self.message_log.clear()
 
         logger.info("监控数据已清除")
 
+    def update_gpu_data(self):
+        """更新GPU使用数据"""
+        if not self.gpu_available:
+            return
 
+        try:
+            current_time = datetime.now().strftime("%H:%M:%S")
+            self.gpu_data["timestamp"].append(current_time)
+
+            for i in range(self.gpu_count):
+                handle = pynvml.nvmlDeviceGetHandleByIndex(i)
+
+                # 获取GPU使用率
+                utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
+                self.gpu_data["utilization"][i].append(utilization.gpu)
+
+                # 获取显存使用情况
+                memory_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+                memory_used_mb = memory_info.used / 1024 / 1024  # 转换为MB
+                memory_total_mb = memory_info.total / 1024 / 1024  # 转换为MB
+
+                self.gpu_data["memory_used"][i].append(memory_used_mb)
+                self.gpu_data["memory_total"][i].append(memory_total_mb)
+        except Exception as e:
+            logger.error(f"更新GPU数据时出错: {e}")
+
+    def get_gpu_data_for_chart(self):
+        """获取GPU数据用于图表"""
+        if not self.gpu_available:
+            return {
+                "labels": [],
+                "datasets": [
+                    {
+                        "label": "GPU未检测到",
+                        "data": [],
+                        "borderColor": "rgba(200, 200, 200, 1)",
+                        "backgroundColor": "rgba(200, 200, 200, 0.2)"
+                    }
+                ]
+            }
+
+        datasets = []
+
+        # GPU使用率数据集
+        for i in range(self.gpu_count):
+            datasets.append({
+                "label": f"GPU {i} 使用率 (%)",
+                "data": list(self.gpu_data["utilization"][i]),
+                "borderColor": f"rgba(255, {99 + i * 40}, 132, 1)",
+                "backgroundColor": f"rgba(255, {99 + i * 40}, 132, 0.2)",
+                "yAxisID": 'y'
+            })
+
+        # 显存使用率数据集
+        for i in range(self.gpu_count):
+            if len(self.gpu_data["memory_total"][i]) > 0:
+                # 计算显存使用率百分比
+                memory_percent = [
+                    (used / total) * 100
+                    for used, total in zip(
+                        self.gpu_data["memory_used"][i],
+                        self.gpu_data["memory_total"][i]
+                    )
+                ]
+
+                datasets.append({
+                    "label": f"GPU {i} 显存使用率 (%)",
+                    "data": memory_percent,
+                    "borderColor": f"rgba({50 + i * 40}, 99, 255, 1)",
+                    "backgroundColor": f"rgba({50 + i * 40}, 99, 255, 0.2)",
+                    "yAxisID": 'y'
+                })
+
+        return {
+            "labels": list(self.gpu_data["timestamp"]),
+            "datasets": datasets
+        }
+
+    def get_gpu_memory_for_chart(self):
+        """获取GPU显存数据用于图表"""
+        if not self.gpu_available:
+            return {
+                "labels": [],
+                "datasets": [
+                    {
+                        "label": "GPU未检测到",
+                        "data": [],
+                        "borderColor": "rgba(200, 200, 200, 1)",
+                        "backgroundColor": "rgba(200, 200, 200, 0.2)"
+                    }
+                ]
+            }
+
+        datasets = []
+
+        # 显存使用量数据集
+        for i in range(self.gpu_count):
+            datasets.append({
+                "label": f"GPU {i} 显存使用 (MB)",
+                "data": list(self.gpu_data["memory_used"][i]),
+                "borderColor": f"rgba({54 + i * 40}, 162, 235, 1)",
+                "backgroundColor": f"rgba({54 + i * 40}, 162, 235, 0.2)",
+                "yAxisID": 'y'
+            })
+
+            # 添加总显存作为参考
+            if len(self.gpu_data["memory_total"][i]) > 0:
+                total_memory = self.gpu_data["memory_total"][i][0]  # 通常总显存不变
+                datasets.append({
+                    "label": f"GPU {i} 总显存 (MB)",
+                    "data": [total_memory] * len(self.gpu_data["timestamp"]),
+                    "borderColor": f"rgba({150 + i * 40}, 150, 150, 0.5)",
+                    "backgroundColor": f"rgba({150 + i * 40}, 150, 150, 0.1)",
+                    "borderDash": [5, 5],
+                    "yAxisID": 'y'
+                })
+
+        return {
+            "labels": list(self.gpu_data["timestamp"]),
+            "datasets": datasets
+        }
 # 创建全局监控数据实例
 monitoring_data = MonitoringData()
 

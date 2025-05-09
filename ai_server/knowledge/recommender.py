@@ -220,7 +220,6 @@ class KnowledgeRecommender:
                     "alternative_concepts": []
                 }
 
-    # 在recommender.py中增加学习路径生成功能
     def generate_learning_sequence(self, target_concept, student_knowledge_state):
         """
         生成学习序列，包含概念、示例和练习

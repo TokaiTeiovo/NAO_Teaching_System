@@ -63,6 +63,9 @@
                         <div>
                             <strong>当前概念:</strong> <span id="current-concept">无</span>
                         </div>
+                        <div>
+                            <strong>最后更新:</strong> <span id="session-last-update">无</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -87,10 +90,10 @@
         <div class="row">
             <div class="col-md-6">
                 <div class="card">
-                    <div class="card-header">情感状态</div>
+                    <div class="card-header">GPU使用率</div>
                     <div class="card-body">
                         <div class="chart-container">
-                            <canvas id="emotion-chart"></canvas>
+                            <canvas id="gpu-usage-chart"></canvas>
                         </div>
                     </div>
                 </div>
@@ -98,10 +101,10 @@
 
             <div class="col-md-6">
                 <div class="card">
-                    <div class="card-header">学习状态</div>
+                    <div class="card-header">GPU显存</div>
                     <div class="card-body">
                         <div class="chart-container">
-                            <canvas id="learning-chart"></canvas>
+                            <canvas id="gpu-memory-chart"></canvas>
                         </div>
                     </div>
                 </div>
@@ -134,8 +137,8 @@
 
     <script>
         // 全局变量
-        let emotionChart = null;
-        let learningChart = null;
+        let gpuUsageChart = null;
+        let gpuMemoryChart = null;
 
         // 页面加载完成后执行
         document.addEventListener('DOMContentLoaded', function() {
@@ -157,24 +160,24 @@
             loadStatus();
             loadSession();
             loadLogs();
-            loadEmotionData();
-            loadLearningData();
+            loadGpuUsageData();
+            loadGpuMemoryData();
 
             // 定时刷新数据
             setInterval(function() {
                 loadStatus();
                 loadSession();
                 loadLogs();
-                loadEmotionData();
-                loadLearningData();
+                loadGpuUsageData();
+                loadGpuMemoryData();
             }, 2000);
         });
 
         // 初始化图表
         function initCharts() {
-            // 初始化情感图表
-            const emotionCtx = document.getElementById('emotion-chart').getContext('2d');
-            emotionChart = new Chart(emotionCtx, {
+            // 初始化GPU使用率图表
+            const gpuUsageCtx = document.getElementById('gpu-usage-chart').getContext('2d');
+            gpuUsageChart = new Chart(gpuUsageCtx, {
                 type: 'line',
                 data: {
                     labels: [],
@@ -190,41 +193,23 @@
                     scales: {
                         y: {
                             beginAtZero: true,
-                            max: 1
+                            max: 100,  // GPU使用率最高100%
+                            title: {
+                                display: true,
+                                text: '使用率 (%)'
+                            }
                         }
                     }
                 }
             });
 
             // 初始化学习状态图表
-            const learningCtx = document.getElementById('learning-chart').getContext('2d');
-            learningChart = new Chart(learningCtx, {
+            const gpuMemoryCtx = document.getElementById('gpu-memory-chart').getContext('2d');
+            gpuMemoryChart = new Chart(gpuMemoryCtx, {
                 type: 'line',
                 data: {
                     labels: [],
-                    datasets: [
-                        {
-                            label: '注意力',
-                            data: [],
-                            borderColor: 'rgb(255, 99, 132)',
-                            backgroundColor: 'rgba(255, 99, 132, 0.1)',
-                            tension: 0.1
-                        },
-                        {
-                            label: '参与度',
-                            data: [],
-                            borderColor: 'rgb(54, 162, 235)',
-                            backgroundColor: 'rgba(54, 162, 235, 0.1)',
-                            tension: 0.1
-                        },
-                        {
-                            label: '理解度',
-                            data: [],
-                            borderColor: 'rgb(75, 192, 192)',
-                            backgroundColor: 'rgba(75, 192, 192, 0.1)',
-                            tension: 0.1
-                        }
-                    ]
+                    datasets: []
                 },
                 options: {
                     responsive: true,
@@ -236,7 +221,10 @@
                     scales: {
                         y: {
                             beginAtZero: true,
-                            max: 1
+                            title: {
+                                display: true,
+                                text: '显存 (MB)'
+                            }
                         }
                     }
                 }
@@ -350,17 +338,15 @@
 
         // 清除图表数据
         function clearCharts() {
-            // 清除情感图表
-            emotionChart.data.labels = [];
-            emotionChart.data.datasets = [];
-            emotionChart.update();
+            // 清除GPU使用率图表
+            gpuUsageChart.data.labels = [];
+            gpuUsageChart.data.datasets = [];
+            gpuUsageChart.update();
 
-            // 清除学习状态图表
-            learningChart.data.labels = [];
-            learningChart.data.datasets.forEach(dataset => {
-                dataset.data = [];
-            });
-            learningChart.update();
+            // 清除GPU显存图表
+            gpuMemoryChart.data.labels = [];
+            gpuMemoryChart.data.datasets = [];
+            gpuMemoryChart.update();
         }
 
         // 加载系统状态
@@ -414,10 +400,24 @@
             const sessionId = document.getElementById('session-id');
             const sessionStart = document.getElementById('session-start');
             const currentConcept = document.getElementById('current-concept');
+            const lastUpdate = document.getElementById('session-last-update');
 
             sessionId.textContent = data.session_id || '无';
             sessionStart.textContent = data.start_time || '无';
             currentConcept.textContent = data.current_concept || '无';
+
+            // 添加最后更新时间显示
+            if (lastUpdate) {
+                lastUpdate.textContent = data.last_update || '无';
+            } else {
+                // 如果元素不存在，则在会话信息卡片中添加
+                const sessionCard = document.querySelector('.card:nth-child(2) .card-body');
+                if (sessionCard) {
+                    const lastUpdateDiv = document.createElement('div');
+                    lastUpdateDiv.innerHTML = `<strong>最后更新:</strong> <span id="session-last-update">${data.last_update || '无'}</span>`;
+                    sessionCard.appendChild(lastUpdateDiv);
+                }
+            }
         }
 
         // 加载日志
@@ -487,93 +487,44 @@
             });
         }
 
-        // 加载情感数据
-        function loadEmotionData() {
-            fetch('/api/emotion_data')
+        // 加载GPU使用率
+        function loadGpuUsageData() {
+            fetch('/api/gpu_usage')
                 .then(response => response.json())
                 .then(data => {
-                    updateEmotionChart(data);
+                    updateGpuUsageChart(data);
                 })
                 .catch(error => {
-                    console.error('获取情感数据失败:', error);
+                    console.error('获取GPU使用率数据失败:', error);
                 });
         }
 
-        // 更新情感图表
-        function updateEmotionChart(data) {
-            // 获取情感数据
-            const timestamps = data.timestamps || [];
-            const emotions = data.emotions || {};
-
-            // 更新图表数据
-            emotionChart.data.labels = timestamps;
-
-            // 清除现有数据集
-            emotionChart.data.datasets = [];
-
-            // 为每种情感创建数据集
-            const emotionColors = {
-                '喜悦': 'rgb(40, 167, 69)',
-                '悲伤': 'rgb(108, 117, 125)',
-                '愤怒': 'rgb(220, 53, 69)',
-                '恐惧': 'rgb(102, 16, 242)',
-                '惊讶': 'rgb(253, 126, 20)',
-                '厌恶': 'rgb(111, 66, 193)',
-                '中性': 'rgb(23, 162, 184)',
-                'happy': 'rgb(40, 167, 69)',
-                'sad': 'rgb(108, 117, 125)',
-                'angry': 'rgb(220, 53, 69)',
-                'fear': 'rgb(102, 16, 242)',
-                'surprise': 'rgb(253, 126, 20)',
-                'disgust': 'rgb(111, 66, 193)',
-                'neutral': 'rgb(23, 162, 184)'
-            };
-
-            for (const [emotion, values] of Object.entries(emotions)) {
-                const color = emotionColors[emotion] || `hsl(${Math.random() * 360}, 70%, 50%)`;
-
-                emotionChart.data.datasets.push({
-                    label: emotion,
-                    data: values,
-                    borderColor: color,
-                    backgroundColor: color.replace('rgb', 'rgba').replace(')', ', 0.1)'),
-                    tension: 0.1
-                });
-            }
-
-            // 更新图表
-            emotionChart.update();
-        }
-
-        // 加载学习状态数据
-        function loadLearningData() {
-            fetch('/api/learning_data')
+        // 加载GPU显存
+        function loadGpuMemoryData() {
+            fetch('/api/gpu_memory')
                 .then(response => response.json())
                 .then(data => {
-                    updateLearningChart(data);
+                    updateGpuMemoryChart(data);
                 })
                 .catch(error => {
-                    console.error('获取学习状态数据失败:', error);
+                    console.error('获取GPU显存数据失败:', error);
                 });
         }
 
-        // 更新学习状态图表
-        function updateLearningChart(data) {
-            // 获取学习状态数据
-            const timestamps = data.timestamps || [];
-            const attention = data.attention || [];
-            const engagement = data.engagement || [];
-            const understanding = data.understanding || [];
-
+        function updateGpuUsageChart(data) {
             // 更新图表数据
-            learningChart.data.labels = timestamps;
-            learningChart.data.datasets[0].data = attention;
-            learningChart.data.datasets[1].data = engagement;
-            learningChart.data.datasets[2].data = understanding;
-
-            // 更新图表
-            learningChart.update();
+            gpuUsageChart.data.labels = data.labels;
+            gpuUsageChart.data.datasets = data.datasets;
+            gpuUsageChart.update();
         }
+
+        function updateGpuMemoryChart(data) {
+            // 更新图表数据
+            gpuMemoryChart.data.labels = data.labels;
+            gpuMemoryChart.data.datasets = data.datasets;
+            gpuMemoryChart.update();
+        }
+
     </script>
 </body>
 </html>
