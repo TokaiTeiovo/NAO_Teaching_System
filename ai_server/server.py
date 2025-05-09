@@ -397,6 +397,9 @@ class AIWebSocketServer:
 
             logger.info(f"接收消息: 客户端={client_id}, 类型={msg_type}, ID={msg_id}")
 
+            if msg_type == "text" and "text" in content:
+                print(f"\n用户问题: {content['text']}")
+
             # 检查消息类型是否支持
             if msg_type in self.message_handlers:
                 # 调用相应的处理方法
@@ -491,6 +494,10 @@ class AIWebSocketServer:
             "id": msg_id,
             "data": data
         }
+
+        # 在控制台显示回复（仅文本响应）
+        if response_type == "text_result" and "text" in data:
+            print(f"\nNAO回复: {data['text']}")
 
         # 序列化并发送
         try:

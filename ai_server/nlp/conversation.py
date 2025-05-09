@@ -74,42 +74,37 @@ class ConversationManager:
         if with_history and session_id in self.sessions:
             history = self.get_history(session_id)
 
-            # 获取当前学习主题（如果有）
-            current_topic = self.sessions[session_id].get("current_topic", "")
+            # 使用更明确的指令
+            prompt = """你是NAO助教，一个专门帮助学生学习的AI助手。你的回答应该清晰、友好且有教育性。
 
-            # 根据不同的意图选择不同的提示模板
-            intent = self.detect_intent(query)
+    以下是之前的对话历史，请根据这些历史和学生的新问题给出专业的回答。
 
-            if intent == "concept_explanation" and current_topic:
-                # 概念解释模板
-                prompt = f"""以下是一段学生与NAO机器人助教关于"{current_topic}"的对话。NAO机器人是一位友好、有帮助的教学助手，擅长解释概念并使用简单的例子。NAO会先给出概念的简洁定义，然后用一个生活中的例子解释，最后可能提供一些额外的相关信息。
+    请注意：
+    1. 你的回答应该是连贯的，不要包含"NAO助教:"或者"学生:"等角色标签
+    2. 直接回答问题，不要重复学生的问题
+    3. 如果学生问的问题与前面的对话有关，确保参考前面的内容
 
-            """
-            elif intent == "problem_solving":
-                # 问题解决模板
-                prompt = """以下是一段学生与NAO机器人助教的对话。NAO机器人是一位善于解决问题的教学助手，会用清晰的步骤指导学生。NAO会先分析问题，说明解决思路，然后一步步引导学生思考，而不是直接给出答案。
+    对话历史：
+    """
 
-            """
-            elif intent == "motivation":
-                # 激励模板
-                prompt = """以下是一段学生与NAO机器人助教的对话。NAO机器人是一位善解人意、富有鼓励性的教学助手，善于激发学生的学习积极性。NAO会理解学生的困难，分享积极的观点，提供实用的建议，并以鼓励的方式结束对话。
-
-            """
-            else:
-                # 默认模板
-                prompt = """以下是一段学生与NAO机器人助教的对话。NAO机器人是一位友好、有帮助的教学助手，能够解答学生的问题并提供学习支持。
-
-            """
-
+            # 添加历史对话
             for msg in history:
-                role = "学生" if msg["role"] == "user" else "NAO助教"
-                prompt += f"{role}: {msg['content']}\n"
+                if msg["role"] == "user":
+                    prompt += f"学生问题: {msg['content']}\n"
+                else:
+                    prompt += f"你的回答: {msg['content']}\n"
 
-            prompt += f"学生: {query}\nNAO助教: "
+            # 添加当前问题
+            prompt += f"\n学生的新问题: {query}\n\n你的回答:\n"
 
         else:
-            # 构建简单提示
-            prompt = f"学生: {query}\nNAO助教: "
+            # 简单提示（无历史）
+            prompt = f"""你是NAO助教，一个专门帮助学生学习的AI助手。学生问了你以下问题，请给出清晰、友好且有教育性的回答：
+
+    学生问题: {query}
+
+    你的回答:
+    """
 
         return prompt
 
@@ -150,6 +145,13 @@ class ConversationManager:
             # 生成回答
             response = self.llm.generate(prompt)
 
+            # 最后一道防线：确保没有角色标签
+            if response.startswith("NAO助教:") or response.startswith("NAO:"):
+                response = response.split(":", 1)[1].strip()
+
+            if "学生:" in response:
+                response = response.split("学生:", 1)[0].strip()
+
             # 添加助手消息到历史
             self.add_message(session_id, "assistant", response)
 
@@ -159,7 +161,6 @@ class ConversationManager:
             logger.error(f"处理查询时出错: {e}", exc_info=True)
             return "很抱歉，我遇到了一些问题，无法回答您的问题。"
 
-    # 在conversation.py中完善教学相关意图识别
     def detect_teaching_intent(self, query):
         """
         检测教学相关意图

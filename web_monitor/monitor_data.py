@@ -68,6 +68,13 @@ class AIServerWebsocket:
             # 记录消息
             monitoring_data.add_message_log(msg_type, data)
 
+            # 特别处理用户发送的文本消息
+            if msg_type == "text":
+                text_content = data.get("data", {}).get("text", "")
+                if text_content:
+                    # 记录用户问题
+                    monitoring_data.add_message_log("user_query", {"message": f"用户问题: {text_content}"})
+
             # 处理情感分析结果
             if msg_type == "audio_result" or msg_type == "image_result":
                 monitoring_data.process_emotion_data(data)
@@ -165,18 +172,39 @@ class MonitoringData:
         }
 
     def add_message_log(self, msg_type, data):
-        """添加消息日志"""
+        """添加日志"""
         timestamp = datetime.now().strftime("%H:%M:%S")
-        self.message_log.appendleft({
+
+        # 提取消息内容
+        if isinstance(data, dict):
+            if "message" in data:
+                # 直接使用提供的消息
+                message = data["message"]
+            elif "data" in data and isinstance(data["data"], dict):
+                # 从data字段提取
+                if "text" in data["data"]:
+                    message = data["data"]["text"]
+                else:
+                    message = str(data["data"])
+            else:
+                message = str(data)
+        else:
+            message = str(data)
+
+        # 创建日志条目
+        log_entry = {
             "timestamp": timestamp,
             "type": msg_type,
-            "data": data
-        })
+            "message": message
+        }
 
-        # 如果是会话初始化消息，更新会话信息
-        if msg_type == "command_result" and "session_id" in data.get("data", {}):
-            self.current_session["session_id"] = data["data"]["session_id"]
-            self.current_session["start_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # 添加到日志
+        self.message_log.appendleft(log_entry)
+
+        # 限制日志数量
+        if len(self.message_log) > 100:
+            while len(self.message_log) > 100:
+                self.message_log.pop()
 
     def update_system_status(self, connected, server_url=None):
         """更新系统状态"""

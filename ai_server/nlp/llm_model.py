@@ -101,11 +101,14 @@ class LLMModel:
                 )
 
             # 解码输出
-            response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+            # 解码输出
+            full_response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
 
-            response = response[len(prompt):].strip()
+            response = full_response[len(prompt):].strip()
 
-            self.response_cache[cache_key] = response
+            cleaned_response = self._clean_response_format(response)
+
+            self.response_cache[cache_key] = cleaned_response
 
             # 限制缓存大小
             if len(self.response_cache) > 100:  # 最多缓存100条记录
@@ -113,12 +116,8 @@ class LLMModel:
                 oldest_key = next(iter(self.response_cache))
                 del self.response_cache[oldest_key]
 
-            return response
+            return cleaned_response
             # 移除原始提示
-
-        except Exception as e:
-            logger.error(f"生成回答时出错: {e}", exc_info=True)
-            return "很抱歉，我现在无法回答这个问题。"
 
         except Exception as e:
             logger.error(f"生成回答时出错: {e}", exc_info=True)
@@ -150,6 +149,7 @@ class LLMModel:
             return None
 
         # 在llm_model.py中添加教学模板
+
     def create_teaching_prompt(self, concept, detail_level="medium", tone="neutral"):
         """
         创建教学提示模板
@@ -184,3 +184,27 @@ class LLMModel:
         """
 
         return prompt
+
+    def _clean_response_format(self, response):
+        """
+        清理回复中的格式问题
+        """
+        # 检查并删除"NAO助教:"前缀
+        if "NAO助教:" in response:
+            response = response.split("NAO助教:", 1)[1].strip()
+        elif "NAO:" in response:
+            response = response.split("NAO:", 1)[1].strip()
+
+        # 切断在"学生:"之后的内容
+        if "学生:" in response:
+            response = response.split("学生:", 1)[0].strip()
+
+        # 检查其他常见格式问题
+        lines = response.split('\n')
+        cleaned_lines = []
+        for line in lines:
+            if line.startswith("学生:") or line.startswith("NAO助教:") or line.startswith("NAO:"):
+                continue  # 跳过角色标签行
+            cleaned_lines.append(line)
+
+        return '\n'.join(cleaned_lines)

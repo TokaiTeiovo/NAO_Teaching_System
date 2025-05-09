@@ -446,6 +446,8 @@
 
                 // 根据日志类型设置样式
                 let typeClass = '';
+                let displayType = log.type;
+
                 switch (log.type) {
                     case 'error':
                         typeClass = 'text-danger';
@@ -455,6 +457,11 @@
                         break;
                     case 'text_result':
                         typeClass = 'text-success';
+                        displayType = 'AI回答';
+                        break;
+                    case 'user_query':
+                        typeClass = 'text-info';
+                        displayType = '用户问题';
                         break;
                     default:
                         typeClass = 'text-secondary';
