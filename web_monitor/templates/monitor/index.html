@@ -42,7 +42,7 @@
                         </div>
                         <div class="mt-3">
                             <div class="input-group">
-                                <input type="text" class="form-control" id="server-url" placeholder="服务器地址">
+                                <input type="text" class="form-control" id="server-url" placeholder="服务器地址" value="ws://localhost:8765">
                                 <button class="btn btn-primary" id="connect-btn">连接</button>
                             </div>
                         </div>
@@ -144,6 +144,9 @@
         document.addEventListener('DOMContentLoaded', function() {
             console.log('页面加载完成，开始初始化...');
 
+            // 设置默认服务器地址
+            document.getElementById('server-url').value = 'ws://localhost:8765';
+
             // 初始化图表
             initCharts();
             console.log('图表初始化完成');
@@ -164,14 +167,13 @@
                 const timestamp = new Date().toLocaleTimeString();
                 console.log(`开始加载所有数据: ${timestamp}`);
 
+                // 强制更新数据
+                forceUpdateData();
+
                 // 首先加载状态和会话信息
                 loadStatus();
                 loadSession();
-
-                // 然后加载日志
                 loadLogs();
-
-                // 最后加载GPU数据
                 loadGpuUsageData();
                 loadGpuMemoryData();
 
@@ -204,6 +206,20 @@
 
             console.log('页面初始化完成，等待数据更新...');
         });
+
+        // 强制更新监控数据
+        function forceUpdateData() {
+            fetch('/api/update_data', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('数据更新结果:', data.success ? '成功' : '失败');
+            })
+            .catch(error => {
+                console.error('强制更新数据出错:', error);
+            });
+        }
 
         // 初始化图表
         function initCharts() {
@@ -248,7 +264,7 @@
                 }
             });
 
-            // 初始化学习状态图表
+            // 初始化GPU显存图表
             const gpuMemoryCtx = document.getElementById('gpu-memory-chart').getContext('2d');
             gpuMemoryChart = new Chart(gpuMemoryCtx, {
                 type: 'line',
@@ -287,6 +303,14 @@
                 return;
             }
 
+            console.log('尝试连接到服务器:', serverUrl);
+
+            // 添加指示器反馈
+            const connectBtn = document.getElementById('connect-btn');
+            const originalText = connectBtn.textContent;
+            connectBtn.textContent = '连接中...';
+            connectBtn.disabled = true;
+
             fetch('/api/connect', {
                 method: 'POST',
                 headers: {
@@ -294,17 +318,32 @@
                 },
                 body: JSON.stringify({ server_url: serverUrl })
             })
-            .then(response => response.json())
+            .then(response => {
+                console.log('连接响应状态:', response.status);
+                return response.json();
+            })
             .then(data => {
+                console.log('连接响应数据:', data);
+
                 if (data.success) {
-                    updateStatus({ connected: true, server_url: serverUrl, last_update: new Date().toLocaleString() });
+                    // 更新UI状态
+                    document.getElementById('status-indicator').className = 'status-indicator status-connected';
+                    document.getElementById('status-text').textContent = '已连接';
+                    console.log('连接服务器成功');
+                    alert('已连接到服务器');
                 } else {
                     alert('连接失败: ' + (data.error || '未知错误'));
+                    console.error('连接服务器失败:', data.error || '未知错误');
                 }
             })
             .catch(error => {
                 console.error('连接请求出错:', error);
                 alert('连接请求出错');
+            })
+            .finally(() => {
+                // 恢复按钮状态
+                connectBtn.textContent = originalText;
+                connectBtn.disabled = false;
             });
         }
 
@@ -328,8 +367,10 @@
             .then(data => {
                 if (data.success) {
                     messageInput.value = '';
+                    console.log('发送消息成功:', text);
                 } else {
                     alert('发送消息失败: ' + (data.error || '未知错误'));
+                    console.error('发送消息失败:', data.error);
                 }
             })
             .catch(error => {
@@ -355,8 +396,10 @@
 
                     // 清除日志
                     document.getElementById('log-container').innerHTML = '';
+                    console.log('清除数据成功');
                 } else {
                     alert('清除数据失败: ' + (data.error || '未知错误'));
+                    console.error('清除数据失败:', data.error);
                 }
             })
             .catch(error => {
@@ -374,8 +417,10 @@
             .then(data => {
                 if (data.success) {
                     alert('数据已保存: ' + data.filename);
+                    console.log('保存数据成功:', data.filename);
                 } else {
                     alert('保存数据失败: ' + (data.error || '未知错误'));
+                    console.error('保存数据失败:', data.error);
                 }
             })
             .catch(error => {
@@ -395,6 +440,8 @@
             gpuMemoryChart.data.labels = [];
             gpuMemoryChart.data.datasets = [];
             gpuMemoryChart.update();
+
+            console.log('图表数据已清除');
         }
 
         // 加载系统状态
@@ -428,6 +475,7 @@
 
             if (data.server_url) {
                 serverUrlInput.value = data.server_url;
+                console.log('设置服务器地址:', data.server_url);
             }
         }
 
@@ -485,49 +533,56 @@
             // 添加日志条目
             logs.forEach(log => {
                 const logEntry = document.createElement('div');
+
+                // 清空日志容器
                 logEntry.className = 'log-entry';
 
-                // 根据日志类型设置样式
-                let typeClass = '';
-                let displayType = log.type;
+                // 添加日志条目
+                logs.forEach(log => {
+                    const logEntry = document.createElement('div');
+                    logEntry.className = 'log-entry';
+                    // 根据日志类型设置样式
+                    let typeClass = '';
+                    let displayType = log.type;
 
-                switch (log.type) {
-                    case 'error':
-                        typeClass = 'text-danger';
-                        break;
-                    case 'system':
-                        typeClass = 'text-primary';
-                        break;
-                    case 'text_result':
-                        typeClass = 'text-success';
-                        displayType = 'AI回答';
-                        break;
-                    case 'user_query':
-                        typeClass = 'text-info';
-                        displayType = '用户问题';
-                        break;
-                    default:
-                        typeClass = 'text-secondary';
-                }
-
-                // 格式化日志内容
-                let content = log.message;
-                if (typeof content === 'object') {
-                    try {
-                        content = JSON.stringify(content);
-                    } catch (e) {
-                        content = '[复杂对象]';
+                    switch (log.type) {
+                        case 'error':
+                            typeClass = 'text-danger';
+                            break;
+                        case 'system':
+                            typeClass = 'text-primary';
+                            break;
+                        case 'text_result':
+                            typeClass = 'text-success';
+                            displayType = 'AI回答';
+                            break;
+                        case 'user_query':
+                            typeClass = 'text-info';
+                            displayType = '用户问题';
+                            break;
+                        default:
+                            typeClass = 'text-secondary';
                     }
-                }
 
-                logEntry.innerHTML = `
-                    <span class="text-muted">${log.timestamp}</span>
-                    <span class="${typeClass}">[${log.type}]</span>
-                    <span>${content}</span>
-                `;
+                    // 格式化日志内容
+                    let content = log.message;
+                    if (typeof content === 'object') {
+                        try {
+                            content = JSON.stringify(content);
+                        } catch (e) {
+                            content = '[复杂对象]';
+                        }
+                    }
 
-                logContainer.appendChild(logEntry);
-            });
+                    logEntry.innerHTML = `
+                        <span class="text-muted">${log.timestamp}</span>
+                        <span class="${typeClass}">[${log.type}]</span>
+                        <span>${content}</span>
+                    `;
+
+                    logContainer.appendChild(logEntry);
+                });
+            }
         }
 
         // 加载GPU使用率
@@ -540,6 +595,10 @@
                 })
                 .then(data => {
                     console.log('GPU使用率数据已获取，时间点数:', data.labels ? data.labels.length : 0);
+                    console.log('数据集数量:', data.datasets ? data.datasets.length : 0);
+                    if (data.datasets && data.datasets.length > 0) {
+                        console.log('第一个数据集点数:', data.datasets[0].data ? data.datasets[0].data.length : 0);
+                    }
                     updateGpuUsageChart(data);
                 })
                 .catch(error => {
@@ -557,6 +616,10 @@
                 })
                 .then(data => {
                     console.log('GPU显存数据已获取，时间点数:', data.labels ? data.labels.length : 0);
+                    console.log('数据集数量:', data.datasets ? data.datasets.length : 0);
+                    if (data.datasets && data.datasets.length > 0) {
+                        console.log('第一个数据集点数:', data.datasets[0].data ? data.datasets[0].data.length : 0);
+                    }
                     updateGpuMemoryChart(data);
                 })
                 .catch(error => {
@@ -570,9 +633,19 @@
                 return;
             }
 
+            // 确保gpuUsageChart被正确初始化
+            if (!gpuUsageChart) {
+                console.error('GPU使用率图表未初始化');
+                initCharts(); // 尝试重新初始化
+            }
+
             gpuUsageChart.data.labels = data.labels;
             gpuUsageChart.data.datasets = data.datasets;
-            gpuUsageChart.update();
+
+            // 确保Y轴最大值适合GPU使用率（0-100%）
+            gpuUsageChart.options.scales.y.max = 100;
+
+            gpuUsageChart.update('none');
             console.log('GPU使用率图表已更新，数据点数:', data.labels.length);
         }
 
@@ -583,6 +656,11 @@
                 return;
             }
 
+            // 确保gpuMemoryChart被正确初始化
+            if (!gpuMemoryChart) {
+                console.error('GPU显存图表未初始化');
+                initCharts(); // 尝试重新初始化
+            }
             gpuMemoryChart.data.labels = data.labels;
             gpuMemoryChart.data.datasets = data.datasets;
             gpuMemoryChart.update();

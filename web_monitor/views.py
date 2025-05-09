@@ -17,7 +17,6 @@ from .monitor_data import monitoring_data, ws_client
 # 设置日志
 logger = setup_logger('web_monitor_views')
 
-
 # 监控模块主页
 @web_monitor_bp.route('/')
 def index():
@@ -40,7 +39,7 @@ def gpu_usage():
         # 强制更新GPU数据
         monitoring_data.update_gpu_data()
         gpu_data = monitoring_data.get_gpu_data_for_chart()
-        logger.debug(f"生成GPU使用率数据: {len(gpu_data.get('labels', []))} 个时间点")
+        logger.info(f"生成GPU使用率数据: {len(gpu_data.get('labels', []))} 个时间点")
         return jsonify(gpu_data)
     except Exception as e:
         logger.error(f"获取GPU使用率数据时出错: {e}")
@@ -55,13 +54,14 @@ def gpu_usage():
             }]
         })
 
+
 @web_monitor_bp.route('/api/gpu_memory')
 def gpu_memory():
     """获取GPU显存数据"""
     try:
         # 使用已经更新的GPU数据
         memory_data = monitoring_data.get_gpu_memory_for_chart()
-        logger.debug(f"生成GPU显存数据: {len(memory_data.get('labels', []))} 个时间点")
+        logger.info(f"生成GPU显存数据: {len(memory_data.get('labels', []))} 个时间点")
         return jsonify(memory_data)
     except Exception as e:
         logger.error(f"获取GPU显存数据时出错: {e}")
@@ -77,7 +77,6 @@ def gpu_memory():
         })
 
 
-
 @web_monitor_bp.route('/api/logs')
 def logs():
     """获取日志数据"""
@@ -89,7 +88,7 @@ def session():
     """获取当前会话信息"""
     try:
         # 会话信息已在update_gpu_data中更新
-        logger.debug(f"会话信息: {monitoring_data.current_session}")
+        logger.info(f"会话信息: {monitoring_data.current_session}")
         return jsonify(monitoring_data.current_session)
     except Exception as e:
         logger.error(f"获取会话信息时出错: {e}")
@@ -104,20 +103,29 @@ def session():
 @web_monitor_bp.route('/api/connect', methods=['POST'])
 def connect_to_server():
     """连接到AI服务器"""
-    server_url = request.json.get('server_url', 'ws://localhost:8765')
+    try:
+        server_url = request.json.get('server_url', 'ws://localhost:8765')
+        logger.info(f"尝试连接到服务器: {server_url}")
 
-    # 断开现有连接
-    if ws_client.connected:
-        ws_client.disconnect()
+        # 断开现有连接
+        if ws_client.connected:
+            ws_client.disconnect()
 
-    # 更新服务器URL
-    ws_client.server_url = server_url
+        # 更新服务器URL
+        ws_client.server_url = server_url
 
-    # 连接到服务器
-    success = ws_client.connect()
-    logger.info(f"连接到AI服务器: {server_url}, 结果: {'成功' if success else '失败'}")
+        # 连接到服务器
+        success = ws_client.connect()
+        logger.info(f"连接到AI服务器: {server_url}, 结果: {'成功' if success else '失败'}")
 
-    return jsonify({"success": success})
+        # 即使连接失败也更新URL
+        monitoring_data.system_status["server_url"] = server_url
+        monitoring_data.system_status["last_update"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        return jsonify({"success": success, "server_url": server_url})
+    except Exception as e:
+        logger.error(f"连接到服务器出错: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)})
 
 
 @web_monitor_bp.route('/api/send_text', methods=['POST'])
@@ -144,7 +152,6 @@ def clear_data():
     except Exception as e:
         logger.error(f"清除数据出错: {e}")
         return jsonify({"success": False, "error": str(e)})
-
 
 @web_monitor_bp.route('/api/save_data', methods=['POST'])
 def save_data():
@@ -175,4 +182,14 @@ def save_data():
 
     except Exception as e:
         logger.error(f"保存数据出错: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
+@web_monitor_bp.route('/api/update_data', methods=['POST'])
+def update_data():
+    """强制更新监控数据"""
+    try:
+        result = monitoring_data.update_gpu_data()
+        return jsonify({"success": result})
+    except Exception as e:
+        logger.error(f"强制更新数据时出错: {e}")
         return jsonify({"success": False, "error": str(e)})
