@@ -61,9 +61,6 @@
                             <strong>开始时间:</strong> <span id="session-start">无</span>
                         </div>
                         <div>
-                            <strong>当前概念:</strong> <span id="current-concept">无</span>
-                        </div>
-                        <div>
                             <strong>最后更新:</strong> <span id="session-last-update">无</span>
                         </div>
                     </div>
@@ -185,9 +182,9 @@
             loadAllData();
             console.log('初始数据加载请求已发送');
 
-            // 创建定时器，每2秒更新一次数据
+            // 创建定时器，每10秒更新一次数据
             console.log('设置数据更新定时器...');
-            window.updateTimer = setInterval(loadAllData, 2000);
+            window.updateTimer = setInterval(loadAllData, 5000);
             console.log('定时器已设置，将每2秒更新一次数据');
 
             // 添加页面可见性监听器
@@ -200,7 +197,7 @@
                     // 页面重新可见时，立即加载数据并重启定时器
                     console.log('页面重新可见，恢复更新');
                     loadAllData();
-                    window.updateTimer = setInterval(loadAllData, 2000);
+                    window.updateTimer = setInterval(loadAllData, 5000);
                 }
             });
 
@@ -311,7 +308,7 @@
             connectBtn.textContent = '连接中...';
             connectBtn.disabled = true;
 
-            fetch('/api/connect', {
+            fetch('/monitor/api/connect', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -330,7 +327,6 @@
                     document.getElementById('status-indicator').className = 'status-indicator status-connected';
                     document.getElementById('status-text').textContent = '已连接';
                     console.log('连接服务器成功');
-                    alert('已连接到服务器');
                 } else {
                     alert('连接失败: ' + (data.error || '未知错误'));
                     console.error('连接服务器失败:', data.error || '未知错误');
@@ -356,7 +352,11 @@
                 return;
             }
 
-            fetch('/api/send_text', {
+            // 记录当前消息用于去重
+            window.lastSentMessage = text;
+
+            // 发送消息到服务器
+            fetch('/monitor/api/send_text', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -385,7 +385,7 @@
                 return;
             }
 
-            fetch('/api/clear', {
+            fetch('/monitor/api/clear_data', {
                 method: 'POST'
             })
             .then(response => response.json())
@@ -410,7 +410,7 @@
 
         // 保存数据
         function saveData() {
-            fetch('/api/save', {
+            fetch('/monitor/api/save_data', {
                 method: 'POST'
             })
             .then(response => response.json())
@@ -482,7 +482,7 @@
         // 加载会话信息
         function loadSession() {
             console.log('开始请求会话信息...');
-            fetch('/api/session')
+            fetch('/monitor/api/session')
                 .then(response => {
                     console.log('会话信息响应状态:', response.status);
                     return response.json();
@@ -513,7 +513,7 @@
 
         // 加载日志
         function loadLogs() {
-            fetch('/api/logs')
+            fetch('/monitor/api/logs')
                 .then(response => response.json())
                 .then(data => {
                     updateLogs(data);
@@ -527,11 +527,25 @@
         function updateLogs(logs) {
             const logContainer = document.getElementById('log-container');
 
+            // 首先检查是否有重复的日志条目
+            const uniqueLogs = [];
+            const seenMessages = new Set();
+
+            for (const log of logs) {
+                // 创建一个唯一标识，包含类型、时间戳和消息
+                const logKey = `${log.type}:${log.timestamp}:${log.message}`;
+
+                if (!seenMessages.has(logKey)) {
+                    seenMessages.add(logKey);
+                    uniqueLogs.push(log);
+                }
+            }
+
             // 清空日志容器
             logContainer.innerHTML = '';
 
             // 添加日志条目
-            logs.forEach(log => {
+            uniqueLogs.forEach(log => {
                 const logEntry = document.createElement('div');
 
                 // 清空日志容器
@@ -545,16 +559,17 @@
                     case 'error':
                         typeClass = 'text-danger';
                         break;
-                    case 'system':
-                        typeClass = 'text-primary';
-                        break;
                     case 'text_result':
+                    case 'ai_response': // 新增的AI回答类型
                         typeClass = 'text-success';
                         displayType = 'AI回答';
                         break;
-                    case 'user_query':
-                        typeClass = 'text-info';
+                    case 'user_query': // 新增的用户问题类型
+                        typeClass = 'text-primary fw-bold'; // 使用蓝色并加粗显示
                         displayType = '用户问题';
+                        break;
+                    case 'system':
+                        typeClass = 'text-info';
                         break;
                     default:
                         typeClass = 'text-secondary';
@@ -570,11 +585,31 @@
                     }
                 }
 
-                logEntry.innerHTML = `
-                    <span class="text-muted">${log.timestamp}</span>
-                    <span class="${typeClass}">[${log.type}]</span>
-                    <span>${content}</span>
-                `;
+                // 移除重复的前缀
+                if (log.type === 'ai_response' && content.startsWith('AI回答: AI回答:')) {
+                    content = content.replace('AI回答: AI回答:', 'AI回答:');
+                } else if (log.type === 'user_query' && content.startsWith('用户问题: 用户问题:')) {
+                    content = content.replace('用户问题: 用户问题:', '用户问题:');
+                }
+
+                if (log.type === 'user_query' || log.type === 'ai_response' || log.type === 'text_result') {
+                    logEntry.innerHTML = `
+                        <div class="d-flex">
+                            <span class="text-muted me-2">${log.timestamp}</span>
+                            <span class="${typeClass} me-2">[${displayType}]</span>
+                        </div>
+                        <div class="ms-4 ${log.type === 'user_query' ? 'border-start border-primary ps-2' :
+                                          (log.type === 'ai_response' || log.type === 'text_result') ? 'border-start border-success ps-2' : ''}">
+                            ${content}
+                        </div>
+                    `;
+                } else {
+                    logEntry.innerHTML = `
+                        <span class="text-muted">${log.timestamp}</span>
+                        <span class="${typeClass}">[${displayType}]</span>
+                        <span>${content}</span>
+                    `;
+                }
 
                 logContainer.appendChild(logEntry);
             });
@@ -583,7 +618,7 @@
         // 加载GPU使用率
         function loadGpuUsageData() {
             console.log('正在请求GPU使用率数据...');
-            fetch('/api/gpu_usage')
+            fetch('/monitor/api/gpu_usage')
                 .then(response => {
                     console.log('GPU使用率响应状态:', response.status);
                     return response.json();
@@ -604,7 +639,7 @@
         // 加载GPU显存
         function loadGpuMemoryData() {
             console.log('正在请求GPU显存数据...');
-            fetch('/api/gpu_memory')
+            fetch('/monitor/api/gpu_memory')
                 .then(response => {
                     console.log('GPU显存响应状态:', response.status);
                     return response.json();

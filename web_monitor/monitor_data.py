@@ -141,6 +141,21 @@ class MonitoringData:
         else:
             message = str(data)
 
+        # 避免记录过长的消息
+        if len(message) > 500:
+            message = message[:497] + "..."
+
+        # 规范化消息类型和内容
+        normalized_message = message
+        if msg_type == "text_result":
+            if not message.startswith("AI回答:"):
+                normalized_message = f"AI回答: {message}"
+            msg_type = "ai_response"  # 统一使用ai_response类型
+        elif msg_type == "text":
+            if not message.startswith("用户问题:"):
+                normalized_message = f"用户问题: {message}"
+            msg_type = "user_query"  # 统一使用user_query类型
+
         # 创建日志条目
         log_entry = {
             "timestamp": timestamp,
@@ -148,8 +163,21 @@ class MonitoringData:
             "message": message
         }
 
+        # 检查是否与最近的日志重复
+        # 如果消息队列不为空，且最新消息与当前消息类型和内容相同，则跳过
+        if len(self.message_log) > 0:
+            latest_log = self.message_log[0]
+            if (latest_log["type"] == log_entry["type"] and
+                    latest_log["message"] == log_entry["message"]):
+                # 这是一个重复的消息，不添加到日志
+                return
+
         # 添加到日志
         self.message_log.appendleft(log_entry)
+
+        # 如果是用户问题或AI回答，也添加到控制台日志
+        if msg_type in ["user_query", "ai_response"]:
+            logger.info(normalized_message)
 
     def update_system_status(self, connected, server_url=None):
         """更新系统状态"""
@@ -322,6 +350,12 @@ class MonitoringData:
         """更新GPU使用率和显存数据"""
         try:
             current_time = datetime.now().strftime("%H:%M:%S")
+
+            # 检查是否与最后一个时间戳相同 (防止重复)
+            if len(self.gpu_data["timestamp"]) > 0 and self.gpu_data["timestamp"][-1] == current_time:
+                logger.debug(f"跳过重复的时间戳更新: {current_time}")
+                return False  # 不更新，返回False
+
             self.gpu_data["timestamp"].append(current_time)
 
             if HAS_PYNVML and self.gpu_available and self.gpu_count > 0:
@@ -364,7 +398,7 @@ class MonitoringData:
             if random.random() < 0.2:  # 20%的概率更新概念
                 self.current_session["current_concept"] = f"GPU监控-{random.randint(1, 100)}"
 
-            logger.info(f"GPU数据已更新 - 时间:{current_time}")
+            logger.debug(f"GPU数据已更新 - 时间:{current_time}")
             return True
         except Exception as e:
             logger.error(f"更新GPU数据时出错: {e}")
@@ -410,7 +444,7 @@ class MonitoringData:
         for i in range(min(self.gpu_count, len(self.gpu_data["utilization"]))):
             data_counts.append(len(self.gpu_data["utilization"][i]))
 
-        logger.info(f"GPU使用率图表数据: 时间戳={label_count}个, 数据集={len(datasets)}个, 数据点数={data_counts}")
+        logger.debug(f"GPU使用率图表数据: 时间戳={label_count}个, 数据集={len(datasets)}个, 数据点数={data_counts}")
 
         return {
             "labels": list(self.gpu_data["timestamp"]),
@@ -421,7 +455,7 @@ class MonitoringData:
         """获取GPU显存数据用于图表"""
         # 确保有数据
         if not self.gpu_available or len(self.gpu_data["timestamp"]) == 0:
-            # 返回硬编码测试数据
+            # 返回硬编码测试数 已连接据
             test_labels = ["09:00", "09:01", "09:02", "09:03", "09:04", "09:05"]
             test_used = [2000, 2500, 3000, 2800, 3200, 3500]
             test_total = [8192, 8192, 8192, 8192, 8192, 8192]
@@ -476,7 +510,7 @@ class MonitoringData:
         for i in range(min(self.gpu_count, len(self.gpu_data["memory_used"]))):
             data_counts.append(len(self.gpu_data["memory_used"][i]))
 
-        logger.info(f"GPU显存图表数据: 时间戳={label_count}个, 数据集={len(datasets)}个, 数据点数={data_counts}")
+        logger.debug(f"GPU显存图表数据: 时间戳={label_count}个, 数据集={len(datasets)}个, 数据点数={data_counts}")
 
         return {
             "labels": list(self.gpu_data["timestamp"]),
@@ -572,8 +606,23 @@ class AIServerWebsocket:
             data = json.loads(message)
             msg_type = data.get("type", "")
 
-            # 记录消息
-            monitoring_data.add_message_log(msg_type, data)
+            # 记录消息，但避免重复处理
+            if msg_type == "text":
+                # 处理用户发送的文本消息
+                text_content = data.get("data", {}).get("text", "")
+                if text_content:
+                    # 直接记录为user_query类型，避免重复转换
+                    monitoring_data.add_message_log("user_query", {"message": f"用户问题: {text_content}"})
+
+            elif msg_type == "text_result":
+                # 处理AI回答
+                text = data.get("data", {}).get("text", "")
+                if text:
+                    # 直接记录为ai_response类型，避免重复转换
+                    monitoring_data.add_message_log("ai_response", {"message": f"AI回答: {text}"})
+            else:
+                # 其他类型的消息正常记录
+                monitoring_data.add_message_log(msg_type, data)
 
             # 特别处理用户发送的文本消息
             if msg_type == "text":
@@ -588,9 +637,11 @@ class AIServerWebsocket:
                 pass
 
             # 处理文本响应
-            if msg_type == "text_result":
-                # 提取概念信息
+            elif msg_type == "text_result":
                 text = data.get("data", {}).get("text", "")
+                if text:
+                    # 记录AI回答
+                    monitoring_data.add_message_log("ai_response", {"message": f"AI回答: {text}"})
 
                 # 如果是概念解释，提取概念
                 if "是指" in text or "定义为" in text or "是一种" in text:

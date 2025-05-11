@@ -39,7 +39,7 @@ def gpu_usage():
         # 强制更新GPU数据
         monitoring_data.update_gpu_data()
         gpu_data = monitoring_data.get_gpu_data_for_chart()
-        logger.info(f"生成GPU使用率数据: {len(gpu_data.get('labels', []))} 个时间点")
+        logger.debug(f"生成GPU使用率数据: {len(gpu_data.get('labels', []))} 个时间点")
         return jsonify(gpu_data)
     except Exception as e:
         logger.error(f"获取GPU使用率数据时出错: {e}")
@@ -61,7 +61,7 @@ def gpu_memory():
     try:
         # 使用已经更新的GPU数据
         memory_data = monitoring_data.get_gpu_memory_for_chart()
-        logger.info(f"生成GPU显存数据: {len(memory_data.get('labels', []))} 个时间点")
+        logger.debug(f"生成GPU显存数据: {len(memory_data.get('labels', []))} 个时间点")
         return jsonify(memory_data)
     except Exception as e:
         logger.error(f"获取GPU显存数据时出错: {e}")
@@ -88,7 +88,7 @@ def session():
     """获取当前会话信息"""
     try:
         # 会话信息已在update_gpu_data中更新
-        logger.info(f"会话信息: {monitoring_data.current_session}")
+        logger.debug(f"会话信息: {monitoring_data.current_session}")
         return jsonify(monitoring_data.current_session)
     except Exception as e:
         logger.error(f"获取会话信息时出错: {e}")
@@ -135,6 +135,9 @@ def send_text():
 
     if not text:
         return jsonify({"success": False, "error": "空消息"})
+
+    # 先记录用户问题到本地日志
+    monitoring_data.add_message_log("user_query", {"message": f"用户问题: {text}"})
 
     success = ws_client.send_message("text", {"text": text})
     logger.info(f"发送文本: {text}, 结果: {'成功' if success else '失败'}")
