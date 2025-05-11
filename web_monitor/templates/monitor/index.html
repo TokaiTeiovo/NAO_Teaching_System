@@ -209,7 +209,7 @@
 
         // 强制更新监控数据
         function forceUpdateData() {
-            fetch('/api/update_data', {
+            fetch('/monitor/api/update_data', {
                 method: 'POST'
             })
             .then(response => response.json())
@@ -446,7 +446,7 @@
 
         // 加载系统状态
         function loadStatus() {
-            fetch('/api/status')
+            fetch('/monitor/api/status')
                 .then(response => response.json())
                 .then(data => {
                     updateStatus(data);
@@ -537,52 +537,47 @@
                 // 清空日志容器
                 logEntry.className = 'log-entry';
 
-                // 添加日志条目
-                logs.forEach(log => {
-                    const logEntry = document.createElement('div');
-                    logEntry.className = 'log-entry';
-                    // 根据日志类型设置样式
-                    let typeClass = '';
-                    let displayType = log.type;
+                // 根据日志类型设置样式
+                let typeClass = '';
+                let displayType = log.type;
 
-                    switch (log.type) {
-                        case 'error':
-                            typeClass = 'text-danger';
-                            break;
-                        case 'system':
-                            typeClass = 'text-primary';
-                            break;
-                        case 'text_result':
-                            typeClass = 'text-success';
-                            displayType = 'AI回答';
-                            break;
-                        case 'user_query':
-                            typeClass = 'text-info';
-                            displayType = '用户问题';
-                            break;
-                        default:
-                            typeClass = 'text-secondary';
+                switch (log.type) {
+                    case 'error':
+                        typeClass = 'text-danger';
+                        break;
+                    case 'system':
+                        typeClass = 'text-primary';
+                        break;
+                    case 'text_result':
+                        typeClass = 'text-success';
+                        displayType = 'AI回答';
+                        break;
+                    case 'user_query':
+                        typeClass = 'text-info';
+                        displayType = '用户问题';
+                        break;
+                    default:
+                        typeClass = 'text-secondary';
+                }
+
+                // 格式化日志内容
+                let content = log.message;
+                if (typeof content === 'object') {
+                    try {
+                        content = JSON.stringify(content);
+                    } catch (e) {
+                        content = '[复杂对象]';
                     }
+                }
 
-                    // 格式化日志内容
-                    let content = log.message;
-                    if (typeof content === 'object') {
-                        try {
-                            content = JSON.stringify(content);
-                        } catch (e) {
-                            content = '[复杂对象]';
-                        }
-                    }
+                logEntry.innerHTML = `
+                    <span class="text-muted">${log.timestamp}</span>
+                    <span class="${typeClass}">[${log.type}]</span>
+                    <span>${content}</span>
+                `;
 
-                    logEntry.innerHTML = `
-                        <span class="text-muted">${log.timestamp}</span>
-                        <span class="${typeClass}">[${log.type}]</span>
-                        <span>${content}</span>
-                    `;
-
-                    logContainer.appendChild(logEntry);
-                });
-            }
+                logContainer.appendChild(logEntry);
+            });
         }
 
         // 加载GPU使用率

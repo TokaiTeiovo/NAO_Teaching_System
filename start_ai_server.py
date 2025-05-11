@@ -1,7 +1,4 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# import eventlet
-# eventlet.monkey_patch()
 
 import argparse
 import asyncio

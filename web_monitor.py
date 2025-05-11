@@ -9,12 +9,12 @@ import argparse
 import logging
 import os
 
-from flask import Flask, render_template, jsonify, request, redirect
+from flask import Flask, redirect
 
 # 设置日志
 from logger import setup_logger
+
 # 直接导入监控数据实例和WebSocket客户端
-from web_monitor.monitor_data import monitoring_data, ws_client
 
 # 设置日志
 logger = setup_logger('web_monitor', log_level="INFO")
@@ -58,6 +58,7 @@ def main():
     try:
         # 启动Flask应用
         app.run(host=args.host, port=args.port, debug=args.debug)
+        print(f"Web监控服务器已启动: http://{args.host}:{args.port}/")
     finally:
         # 关闭NVML
         try:
