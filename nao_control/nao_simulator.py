@@ -5,27 +5,12 @@
 NAO机器人模拟器 - 专门针对Windows中文显示优化版
 """
 
-import codecs
 import json
 import sys
 import threading
 import time
 
 import websocket
-
-# 针对Windows系统设置控制台编码
-if sys.platform == 'win32':
-    try:
-        # 尝试将控制台设为UTF-8模式
-        import ctypes
-
-        kernel32 = ctypes.windll.kernel32
-        kernel32.SetConsoleCP(65001)
-        kernel32.SetConsoleOutputCP(65001)
-        # 强制stdout使用UTF-8
-        sys.stdout = codecs.getwriter('utf-8')(sys.stdout)
-    except:
-        pass
 
 # 针对Python 2.7的编码设置
 reload(sys)
