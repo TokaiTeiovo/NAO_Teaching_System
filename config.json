@@ -5,10 +5,13 @@
   },
   "llm": {
     "model_name": "deepseek-ai/deepseek-llm-7b-chat",
-    "model_path": "./models/deepseek-llm-7b-chat",
-    "use_lora": false
+    "model_path": "./shared/models/deepseek-llm-7b-chat",
+    "use_lora": false,
+    "lora_path": "./shared/models/lora"
   },
   "emotion": {
+    "audio_model_path": "./shared/models/audio_emotion",
+    "face_model_path": "./shared/models/face_emotion",
     "fusion_weights": {
       "audio": 0.4,
       "face": 0.6
@@ -23,5 +26,17 @@
     "domain": "计算机科学",
     "default_importance": 3,
     "default_difficulty": 3
+  },
+  "logging": {
+    "level": "INFO",
+    "log_dir": "./logs"
+  },
+  "paths": {
+    "shared_dir": "./shared",
+    "config_dir": "./shared/config",
+    "models_dir": "./shared/models",
+    "temp_dir": "./shared/temp",
+    "output_dir": "./shared/output",
+    "log_dir": "./logs"
   }
 }

@@ -11,10 +11,11 @@ import concurrent.futures
 import functools
 import json
 import logging
-import os
+import sys
 import time
 import uuid
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 import colorlog
 import numpy as np
@@ -23,14 +24,29 @@ import websockets
 from peft import PeftModel
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 
+# 添加项目根目录到路径
+PROJECT_ROOT = Path(__file__).parent.parent
+sys.path.append(str(PROJECT_ROOT))
+
+# 定义路径常量
+SHARED_DIR = PROJECT_ROOT / "shared"
+CONFIG_DIR = SHARED_DIR / "config"
+MODELS_DIR = SHARED_DIR / "models"
+TEMP_DIR = SHARED_DIR / "temp"
+OUTPUT_DIR = SHARED_DIR / "output"
+LOG_DIR = PROJECT_ROOT / "logs"
+
+# 确保目录存在
+for directory in [SHARED_DIR, CONFIG_DIR, MODELS_DIR, TEMP_DIR, OUTPUT_DIR, LOG_DIR]:
+    directory.mkdir(parents=True, exist_ok=True)
+
 
 # ==================== 日志配置 ====================
 def setup_logger(name, log_level="INFO", log_file=None):
     """设置带颜色的日志记录器"""
     if log_file:
-        log_dir = os.path.dirname(log_file)
-        if not os.path.exists(log_dir):
-            os.makedirs(log_dir)
+        log_file = LOG_DIR / log_file if not Path(log_file).is_absolute() else Path(log_file)
+        log_file.parent.mkdir(parents=True, exist_ok=True)
 
     logger = logging.getLogger(name)
     if getattr(logger, '_configured', False):
@@ -83,7 +99,15 @@ def setup_logger(name, log_level="INFO", log_file=None):
 class Config:
     """配置管理类"""
 
-    def __init__(self, config_path="config.json"):
+    def __init__(self, config_path=None):
+        # 默认配置文件路径
+        if config_path is None:
+            config_path = PROJECT_ROOT / "config.json"
+        else:
+            config_path = Path(config_path)
+            if not config_path.is_absolute():
+                config_path = PROJECT_ROOT / config_path
+
         self.default_config = {
             "server": {
                 "host": "localhost",
@@ -91,13 +115,13 @@ class Config:
             },
             "llm": {
                 "model_name": "deepseek-ai/deepseek-llm-7b-chat",
-                "model_path": "./models/deepseek-llm-7b-chat",
-                "use_lora": True,
-                "lora_path": "./models/lora"
+                "model_path": str(MODELS_DIR / "deepseek-llm-7b-chat"),
+                "use_lora": False,
+                "lora_path": str(MODELS_DIR / "lora")
             },
             "emotion": {
-                "audio_model_path": "./models/audio_emotion",
-                "face_model_path": "./models/face_emotion",
+                "audio_model_path": str(MODELS_DIR / "audio_emotion"),
+                "face_model_path": str(MODELS_DIR / "face_emotion"),
                 "fusion_weights": {
                     "audio": 0.4,
                     "face": 0.6
@@ -107,8 +131,11 @@ class Config:
                 "neo4j": {
                     "uri": "bolt://localhost:7687",
                     "user": "neo4j",
-                    "password": "password"
-                }
+                    "password": "admin123"
+                },
+                "domain": "计算机科学",
+                "default_importance": 3,
+                "default_difficulty": 3
             },
             "logging": {
                 "level": "INFO",
@@ -117,7 +144,7 @@ class Config:
         }
 
         self.config_path = config_path
-        if os.path.exists(config_path):
+        if config_path.exists():
             with open(config_path, 'r', encoding='utf-8') as f:
                 user_config = json.load(f)
                 self._merge_configs(self.default_config, user_config)
@@ -155,13 +182,13 @@ class LLMModel:
     def __init__(self, config):
         self.config = config
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.logger = setup_logger('llm_model')
+        self.logger = setup_logger('llm_model', log_file='ai_server.log')
 
         # 模型配置
         self.model_name = config.get("llm.model_name", "deepseek-ai/deepseek-llm-7b-chat")
-        self.model_path = config.get("llm.model_path", "./models/deepseek-llm-7b-chat")
-        self.use_lora = config.get("llm.use_lora", True)
-        self.lora_path = config.get("llm.lora_path", "./models/lora")
+        self.model_path = Path(config.get("llm.model_path", str(MODELS_DIR / "deepseek-llm-7b-chat")))
+        self.use_lora = config.get("llm.use_lora", False)
+        self.lora_path = Path(config.get("llm.lora_path", str(MODELS_DIR / "lora")))
 
         # 缓存机制
         self.response_cache = {}
@@ -181,23 +208,24 @@ class LLMModel:
             )
 
             # 加载分词器
+            model_path_str = str(self.model_path) if self.model_path.exists() else self.model_name
             self.tokenizer = AutoTokenizer.from_pretrained(
-                self.model_path if os.path.exists(self.model_path) else self.model_name,
+                model_path_str,
                 trust_remote_code=True
             )
 
             # 加载模型
             self.model = AutoModelForCausalLM.from_pretrained(
-                self.model_path if os.path.exists(self.model_path) else self.model_name,
+                model_path_str,
                 quantization_config=bnb_config,
                 device_map="auto",
                 trust_remote_code=True
             )
 
             # 如果使用LoRA且存在LoRA权重，加载LoRA权重
-            if self.use_lora and os.path.exists(self.lora_path):
+            if self.use_lora and self.lora_path.exists():
                 self.logger.info(f"加载LoRA权重: {self.lora_path}")
-                self.model = PeftModel.from_pretrained(self.model, self.lora_path)
+                self.model = PeftModel.from_pretrained(self.model, str(self.lora_path))
 
             self.logger.info("模型加载完成")
         except Exception as e:
@@ -268,7 +296,7 @@ class ConversationManager:
     def __init__(self, llm_model):
         self.llm = llm_model
         self.sessions = {}
-        self.logger = setup_logger('conversation')
+        self.logger = setup_logger('conversation', log_file='ai_server.log')
 
     def create_session(self):
         session_id = str(uuid.uuid4())
@@ -373,7 +401,7 @@ class EmotionFusion:
         self.emotions = ["愤怒", "厌恶", "恐惧", "喜悦", "中性", "悲伤", "惊讶"]
         self.emotion_history = []
         self.history_max_len = 5
-        self.logger = setup_logger('emotion_fusion')
+        self.logger = setup_logger('emotion_fusion', log_file='ai_server.log')
 
     def fuse_emotions(self, audio_emotion, face_emotion):
         try:
@@ -455,7 +483,7 @@ class AIWebSocketServer:
         self.llm = llm
         self.conversation = conversation
         self.emotion_fusion = emotion_fusion
-        self.logger = setup_logger('ai_websocket_server')
+        self.logger = setup_logger('ai_websocket_server', log_file='ai_server.log')
 
         self.message_handlers = {
             "audio": self.handle_audio,
@@ -697,7 +725,7 @@ class AIWebSocketServer:
 async def start_server(host="localhost", port=8765):
     """启动AI服务器"""
     try:
-        logger = setup_logger('ai_server_starter')
+        logger = setup_logger('ai_server_starter', log_file='ai_server.log')
         logger.info("加载配置...")
         config = Config()
 
@@ -743,7 +771,7 @@ def main():
     parser.add_argument("--port", type=int, default=8765, help="服务器端口号")
     args = parser.parse_args()
 
-    logger = setup_logger('main')
+    logger = setup_logger('main', log_file='ai_server.log')
     logger.info(f"启动参数: 主机={args.host}, 端口={args.port}")
 
     try:

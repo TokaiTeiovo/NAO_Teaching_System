@@ -8,24 +8,32 @@ Flask服务器 + 完整前端界面
 
 import argparse
 import logging
-import os
+import sys
 import threading
 import time
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 import colorlog
 import psutil
 from flask import Flask, render_template_string, jsonify
+
+# 添加项目根目录到路径
+PROJECT_ROOT = Path(__file__).parent.parent
+sys.path.append(str(PROJECT_ROOT))
+
+# 定义路径常量
+LOG_DIR = PROJECT_ROOT / "logs"
+LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 
 # ==================== 日志配置 ====================
 def setup_logger(name, log_level="INFO", log_file=None):
     """设置带颜色的日志记录器"""
     if log_file:
-        log_dir = os.path.dirname(log_file)
-        if not os.path.exists(log_dir):
-            os.makedirs(log_dir)
+        log_file = LOG_DIR / log_file if not Path(log_file).is_absolute() else Path(log_file)
+        log_file.parent.mkdir(parents=True, exist_ok=True)
 
     logger = logging.getLogger(name)
     if getattr(logger, '_configured', False):
@@ -67,7 +75,7 @@ class SystemMonitor:
     """系统资源监控器"""
 
     def __init__(self):
-        self.logger = setup_logger('system_monitor')
+        self.logger = setup_logger('system_monitor', log_file='web_monitor.log')
         self.monitoring = False
         self.stats = {
             'cpu_percent': 0.0,
@@ -163,7 +171,7 @@ app.config['SECRET_KEY'] = 'multimodal_teaching_system_2025'
 
 # 全局变量
 system_monitor = SystemMonitor()
-logger = setup_logger('web_monitor')
+logger = setup_logger('web_monitor', log_file='web_monitor.log')
 
 # HTML模板
 HTML_TEMPLATE = """

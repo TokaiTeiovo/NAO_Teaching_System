@@ -1,9 +1,8 @@
-#!/usr/bin/env python
+"""
+scripts/start_system.py - 系统一键启动脚本
+"""
+# !/usr/bin/env python
 # -*- coding: utf-8 -*-
-
-"""
-基于大语言模型的多模态智能教学系统 - 一键启动脚本
-"""
 
 import argparse
 import os
@@ -11,6 +10,7 @@ import subprocess
 import sys
 import time
 import webbrowser
+from pathlib import Path
 
 
 def print_banner():
@@ -18,122 +18,63 @@ def print_banner():
     banner = """
 ╔═══════════════════════════════════════════════════════════════╗
 ║               基于大语言模型的多模态智能教学系统              ║
+║                        一键启动脚本                          ║
 ║                                                               ║
-║  • 大语言模型智能对话                                         ║
-║  • 多模态情感识别                                             ║
-║  • 知识图谱智能推荐                                           ║
-║  • 实时Web监控界面                                            ║
+║  • 🤖 AI服务器 (智能对话)                                     ║
+║  • 🌐 Web监控 (实时监控)                                      ║
+║  • 📊 知识提取 (PDF处理)                                      ║
 ╚═══════════════════════════════════════════════════════════════╝
 """
     print(banner)
 
 
-def check_dependencies():
-    """检查系统依赖"""
-    print("🔍 检查系统依赖...")
+def check_environments():
+    """检查虚拟环境"""
+    print("🔍 检查虚拟环境...")
 
-    required_packages = [
-        'torch', 'transformers', 'websockets', 'flask',
-        'opencv-python', 'paddlepaddle', 'paddleocr',
-        'neo4j', 'py2neo', 'numpy', 'tqdm', 'colorlog'
-    ]
+    script_dir = Path(__file__).parent
+    project_root = script_dir.parent
 
-    missing_packages = []
+    # 检查AI服务器环境
+    ai_server_dir = project_root / "ai_server"
+    ai_python = ai_server_dir / ("venv/Scripts/python.exe" if os.name == 'nt' else "venv/bin/python")
 
-    for package in required_packages:
-        try:
-            __import__(package.replace('-', '_'))
-            print(f"  ✅ {package}")
-        except ImportError:
-            missing_packages.append(package)
-            print(f"  ❌ {package} (缺失)")
-
-    if missing_packages:
-        print(f"\n⚠️  缺少依赖包: {', '.join(missing_packages)}")
-        print("请运行: pip install " + " ".join(missing_packages))
-        return False
-
-    print("✅ 所有依赖检查通过!")
-    return True
-
-
-def check_config():
-    """检查配置文件"""
-    print("\n📋 检查配置文件...")
-
-    config_file = "config.json"
-    if not os.path.exists(config_file):
-        print(f"⚠️  配置文件 {config_file} 不存在，正在创建默认配置...")
-        create_default_config()
-    else:
-        print(f"✅ 配置文件 {config_file} 存在")
-
-    # 检查模型目录
-    model_dir = "models/deepseek-llm-7b-chat"
-    if not os.path.exists(model_dir):
-        print(f"⚠️  模型目录 {model_dir} 不存在")
-        print("请下载DeepSeek-7B-Chat模型到该目录")
+    if not ai_python.exists():
+        print("❌ AI服务器虚拟环境不存在")
         return False
     else:
-        print(f"✅ 模型目录 {model_dir} 存在")
+        print("✅ AI服务器虚拟环境正常")
+
+    # 检查知识提取器环境
+    ke_dir = project_root / "knowledge_extractor"
+    ke_python = ke_dir / ("kl_venv/Scripts/python.exe")
+
+    if not ke_python.exists():
+        print("❌ 知识提取器虚拟环境不存在")
+        return False
+    else:
+        print("✅ 知识提取器虚拟环境正常")
 
     return True
-
-
-def create_default_config():
-    """创建默认配置文件"""
-    import json
-
-    default_config = {
-        "server": {
-            "host": "localhost",
-            "port": 8765
-        },
-        "llm": {
-            "model_name": "deepseek-ai/deepseek-llm-7b-chat",
-            "model_path": "./models/deepseek-llm-7b-chat",
-            "use_lora": False
-        },
-        "emotion": {
-            "fusion_weights": {
-                "audio": 0.4,
-                "face": 0.6
-            }
-        },
-        "knowledge": {
-            "neo4j": {
-                "uri": "bolt://127.0.0.1:7687",
-                "user": "neo4j",
-                "password": "admin123"
-            },
-            "domain": "计算机科学",
-            "default_importance": 3,
-            "default_difficulty": 3
-        }
-    }
-
-    with open("config.json", 'w', encoding='utf-8') as f:
-        json.dump(default_config, f, ensure_ascii=False, indent=2)
-
-    print("✅ 默认配置文件已创建")
 
 
 def start_ai_server():
     """启动AI服务器"""
-    print("\n🤖 启动AI服务器...")
+    print("\n🤖 启动AI服务器进程...")
 
-    cmd = [sys.executable, "ai_server_integrated.py", "--host", "0.0.0.0", "--port", "8765"]
+    script_dir = Path(__file__).parent
+    start_script = script_dir / "start_ai_server.py"
 
     try:
         process = subprocess.Popen(
-            cmd,
+            [sys.executable, str(start_script), "--host", "0.0.0.0", "--port", "8765"],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             universal_newlines=True,
             bufsize=1
         )
 
-        print("✅ AI服务器已启动 (PID: {})".format(process.pid))
+        print(f"✅ AI服务器已启动 (PID: {process.pid})")
         print("   WebSocket地址: ws://localhost:8765")
         return process
     except Exception as e:
@@ -143,20 +84,21 @@ def start_ai_server():
 
 def start_web_monitor():
     """启动Web监控"""
-    print("\n🌐 启动Web监控界面...")
+    print("\n🌐 启动Web监控进程...")
 
-    cmd = [sys.executable, "web_monitor_integrated.py", "--host", "127.0.0.1", "--port", "5000"]
+    script_dir = Path(__file__).parent
+    start_script = script_dir / "start_web_monitor.py"
 
     try:
         process = subprocess.Popen(
-            cmd,
+            [sys.executable, str(start_script), "--host", "127.0.0.1", "--port", "5000"],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             universal_newlines=True,
             bufsize=1
         )
 
-        print("✅ Web监控已启动 (PID: {})".format(process.pid))
+        print(f"✅ Web监控已启动 (PID: {process.pid})")
         print("   监控地址: http://localhost:5000")
         return process
     except Exception as e:
@@ -166,22 +108,30 @@ def start_web_monitor():
 
 def start_knowledge_extraction(pdf_path):
     """启动知识提取"""
-    if not pdf_path or not os.path.exists(pdf_path):
-        print("⚠️  PDF文件路径无效，跳过知识提取")
+    if not pdf_path:
+        print("⚠️  未指定PDF文件，跳过知识提取")
+        return None
+
+    pdf_file = Path(pdf_path)
+    if not pdf_file.exists():
+        print(f"⚠️  PDF文件不存在: {pdf_path}")
         return None
 
     print(f"\n📊 启动知识提取: {pdf_path}")
 
-    cmd = [
-        sys.executable, "knowledge_extractor_integrated.py",
-        "--pdf", pdf_path,
-        "--output", "output/knowledge_graph.json",
-        "--import-neo4j"
-    ]
+    script_dir = Path(__file__).parent
+    start_script = script_dir / "start_knowledge_extractor.py"
 
     try:
+        cmd = [
+            sys.executable, str(start_script),
+            "--pdf", str(pdf_path),
+            "--output", "knowledge_graph.json",
+            "--import-neo4j"
+        ]
+
         process = subprocess.Popen(cmd)
-        print("✅ 知识提取已启动 (PID: {})".format(process.pid))
+        print(f"✅ 知识提取已启动 (PID: {process.pid})")
         return process
     except Exception as e:
         print(f"❌ 知识提取启动失败: {e}")
@@ -213,12 +163,10 @@ def main():
 
     print_banner()
 
-    # 检查依赖
-    if not check_dependencies():
-        sys.exit(1)
-
-    # 检查配置
-    if not check_config():
+    # 检查环境
+    if not check_environments():
+        print("\n❌ 环境检查失败!")
+        print("请运行: python setup_environments.py")
         sys.exit(1)
 
     if args.check_only:

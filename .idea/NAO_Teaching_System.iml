@@ -7,7 +7,7 @@
       <excludeFolder url="file://$MODULE_DIR$/knowledge_extraction/.venv" />
       <excludeFolder url="file://$MODULE_DIR$/ai_server/ai_venv" />
     </content>
-    <orderEntry type="jdk" jdkName="Python 3.10 (NAO_Teaching_System)" jdkType="Python SDK" />
+    <orderEntry type="jdk" jdkName="Python 3.10" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
 </module>
