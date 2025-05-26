@@ -1,5 +1,5 @@
-/models
-/models/deepseek-llm-7b-chat/
-/output
-/temp
+/shared/models
+/shared/models/deepseek-llm-7b-chat/
+/shared/output
+/shared/temp
 /temp_ocr

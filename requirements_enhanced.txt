@@ -1,0 +1,234 @@
+# 基于大语言模型的多模态智能教学系统 - 增强版依赖包
+
+# 核心框架
+torch>=2.0.0
+transformers>=4.30.0
+tokenizers>=0.13.0
+accelerate>=0.20.0
+
+# 量化和优化
+bitsandbytes>=0.41.0
+peft>=0.4.0
+optimum>=1.8.0
+
+# Web框架和通信
+flask>=2.3.0
+flask-socketio>=5.3.0
+websockets>=11.0
+eventlet>=0.33.0
+
+# OCR和图像处理
+paddlepaddle>=2.5.0
+paddleocr>=2.7.0
+easyocr>=1.7.0
+opencv-python>=4.8.0
+Pillow>=9.5.0
+pdf2image>=1.16.0
+
+# 音频处理
+librosa>=0.10.0
+soundfile>=0.12.0
+pyaudio>=0.2.11
+
+# 数据处理和科学计算
+numpy>=1.24.0
+pandas>=2.0.0
+scipy>=1.10.0
+scikit-learn>=1.3.0
+
+# 图数据库
+neo4j>=5.0.0
+py2neo>=2021.2.3
+
+# NLP相关
+jieba>=0.42.0
+nltk>=3.8.0
+spacy>=3.6.0
+
+# 系统监控
+psutil>=5.9.0
+pynvml>=11.5.0
+GPUtil>=1.4.0
+
+# 日志和配置
+colorlog>=6.7.0
+python-dotenv>=1.0.0
+pyyaml>=6.0
+
+# 数据可视化
+matplotlib>=3.7.0
+seaborn>=0.12.0
+plotly>=5.15.0
+
+# 工具包
+tqdm>=4.65.0
+rich>=13.4.0
+typer>=0.9.0
+click>=8.1.0
+
+# 异步和并发
+asyncio>=3.4.3
+aiohttp>=3.8.0
+celery>=5.3.0
+redis>=4.6.0
+
+# 数据库
+sqlalchemy>=2.0.0
+
+# 测试框架
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+
+# 开发工具
+jupyter>=1.0.0
+ipython>=8.14.0
+black>=23.7.0
+flake8>=6.0.0
+
+# 安全和认证
+cryptography>=41.0.0
+pyjwt>=2.8.0
+bcrypt>=4.0.0
+
+# 文档生成
+sphinx>=7.1.0
+sphinx-rtd-theme>=1.3.0
+
+# 其他实用工具
+requests>=2.31.0
+httpx>=0.24.0
+python-multipart>=0.0.6
+fastapi>=0.100.0
+uvicorn>=0.23.0
+
+# 机器学习扩展
+xgboost>=1.7.0
+lightgbm>=4.0.0
+catboost>=1.2.0
+
+# 自然语言处理扩展
+sentence-transformers>=2.2.0
+gensim>=4.3.0
+wordcloud>=1.9.0
+
+# 图像处理扩展
+albumentations>=1.3.0
+imagehash>=4.3.0
+face-recognition>=1.3.0
+
+# 时间序列分析
+statsmodels>=0.14.0
+prophet>=1.1.0
+
+# 配置文件处理
+configparser>=5.3.0
+toml>=0.10.0
+
+# HTTP客户端
+aiofiles>=23.1.0
+starlette>=0.27.0
+
+# 缓存
+cachetools>=5.3.0
+
+# 任务队列
+rq>=1.15.0
+dramatiq>=1.13.0
+
+# 监控和分析
+prometheus-client>=0.17.0
+grafana-api>=1.0.3
+
+# 文件处理
+openpyxl>=3.1.0
+python-docx>=0.8.11
+pypdf>=3.12.0
+pdfplumber>=0.9.0
+
+# 加密和安全
+passlib>=1.7.4
+python-jose>=3.3.0
+
+# 环境变量管理
+python-decouple>=3.8
+
+# 数据验证
+pydantic>=2.0.0
+marshmallow>=3.20.0
+
+# 国际化
+babel>=2.12.0
+
+# 微服务
+etcd3>=0.12.0
+
+# 消息队列
+pika>=1.3.0
+kafka-python>=2.0.2
+
+# 分布式计算
+dask>=2023.7.0
+
+ray>=2.5.0
+
+# 版本控制
+gitpython>=3.1.0
+
+# API文档
+swagger-ui-bundle>=0.0.9
+
+# 数据库迁移
+alembic>=1.11.0
+
+# 性能分析
+line-profiler>=4.0.0
+memory-profiler>=0.60.0
+
+# 容错和重试
+tenacity>=8.2.0
+backoff>=2.2.0
+
+# 数据流处理
+apache-beam>=2.48.0
+streamlit>=1.25.0
+
+# 地理信息处理
+geopy>=2.3.0
+folium>=0.14.0
+
+# 时间处理
+pendulum>=2.1.2
+arrow>=1.2.3
+
+# 密码学
+pycryptodome>=3.18.0
+
+# 文本处理
+regex>=2023.6.3
+textdistance>=4.6.0
+
+# 编码检测
+chardet>=5.1.0
+charset-normalizer>=3.2.0
+
+# 进度条
+alive-progress>=3.1.0
+
+# 颜色处理
+colorama>=0.4.6
+termcolor>=2.3.0
+
+# 系统信息
+distro>=1.8.0
+
+# 网络工具
+netaddr>=0.8.0
+dnspython>=2.3.0
+
+# 压缩和解压
+zipfile38>=0.0.3
+
+
+# 随机数生成
+random2>=1.0.1
