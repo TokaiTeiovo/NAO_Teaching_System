@@ -2506,8 +2506,10 @@ def get_system_stats():
 
 
 # 后台处理函数
+# 在 ai_server/web_monitor_integrated.py 文件中修改后台处理函数
+
 def process_pdf_background(process_id, filepath, domain, batch_size, import_neo4j, neo4j_config):
-    """后台处理PDF - 修改版，支持实时进度显示"""
+    """后台处理PDF - 支持控制台实时显示"""
     try:
         processing_status[process_id].update({
             'progress': 20,
@@ -2540,19 +2542,41 @@ def process_pdf_background(process_id, filepath, domain, batch_size, import_neo4
         print(f"\n🚀 开始处理PDF: {filepath}")
         print(f"📋 处理参数: 领域={domain}, 批次={batch_size}")
 
-        # 修改这里：不重定向输出，让进度条在控制台正常显示
-        result = subprocess.run(
+        # 关键修改：使用实时输出模式
+        process = subprocess.Popen(
             cmd,
-            # 注释掉这两行，让输出直接显示在控制台
-            # capture_output=True,
-            # text=True,
-            timeout=3600,
-            # 可选：只重定向stderr，保留stdout给进度条
-            stderr=subprocess.PIPE,
-            text=True
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            universal_newlines=True,
+            bufsize=1  # 行缓冲
         )
 
-        if result.returncode == 0:
+        # 实时读取并显示输出
+        while True:
+            output = process.stdout.readline()
+            if output == '' and process.poll() is not None:
+                break
+            if output:
+                # 直接打印到控制台
+                print(output.strip())
+
+                # 根据输出内容更新进度
+                if "批次" in output and "完成" in output:
+                    # 提取批次信息更新进度
+                    try:
+                        if "批次" in output:
+                            current_progress = min(80, processing_status[process_id]['progress'] + 2)
+                            processing_status[process_id].update({
+                                'progress': current_progress,
+                                'message': output.strip()
+                            })
+                    except:
+                        pass
+
+        # 等待进程完成
+        return_code = process.poll()
+
+        if return_code == 0:
             print(f"✅ PDF处理完成: {filepath}")
             processing_status[process_id].update({
                 'status': 'completed',
@@ -2565,11 +2589,10 @@ def process_pdf_background(process_id, filepath, domain, batch_size, import_neo4
                 }
             })
         else:
-            error_msg = result.stderr if hasattr(result, 'stderr') and result.stderr else 'Processing failed'
-            print(f"❌ PDF处理失败: {error_msg}")
+            print(f"❌ PDF处理失败，返回码: {return_code}")
             processing_status[process_id].update({
                 'status': 'error',
-                'error': error_msg
+                'error': f'Processing failed with return code {return_code}'
             })
 
     except Exception as e:
@@ -2580,7 +2603,7 @@ def process_pdf_background(process_id, filepath, domain, batch_size, import_neo4
         })
 
 def process_images_background(process_id, images_folder, domain, import_neo4j, neo4j_config):
-    """后台处理图片 - 修改版"""
+    """后台处理图片 - 支持控制台实时显示"""
     try:
         processing_status[process_id].update({
             'progress': 20,
@@ -2611,15 +2634,37 @@ def process_images_background(process_id, images_folder, domain, import_neo4j, n
         print(f"\n🚀 开始处理图片文件夹: {images_folder}")
         print(f"📋 处理参数: 领域={domain}")
 
-        # 同样修改这里
-        result = subprocess.run(
+        # 同样使用实时输出模式
+        process = subprocess.Popen(
             cmd,
-            timeout=3600,
-            stderr=subprocess.PIPE,
-            text=True
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            universal_newlines=True,
+            bufsize=1
         )
 
-        if result.returncode == 0:
+        # 实时读取并显示输出
+        while True:
+            output = process.stdout.readline()
+            if output == '' and process.poll() is not None:
+                break
+            if output:
+                print(output.strip())
+
+                # 更新进度
+                if "图片OCR" in output or "知识提取" in output:
+                    try:
+                        current_progress = min(90, processing_status[process_id]['progress'] + 3)
+                        processing_status[process_id].update({
+                            'progress': current_progress,
+                            'message': output.strip()
+                        })
+                    except:
+                        pass
+
+        return_code = process.poll()
+
+        if return_code == 0:
             print(f"✅ 图片处理完成: {images_folder}")
             processing_status[process_id].update({
                 'status': 'completed',
@@ -2632,11 +2677,10 @@ def process_images_background(process_id, images_folder, domain, import_neo4j, n
                 }
             })
         else:
-            error_msg = result.stderr if result.stderr else 'Processing failed'
-            print(f"❌ 图片处理失败: {error_msg}")
+            print(f"❌ 图片处理失败，返回码: {return_code}")
             processing_status[process_id].update({
                 'status': 'error',
-                'error': error_msg
+                'error': f'Processing failed with return code {return_code}'
             })
 
     except Exception as e:
@@ -2647,7 +2691,7 @@ def process_images_background(process_id, images_folder, domain, import_neo4j, n
         })
 
 def process_json_background(process_id, filepath, domain, import_neo4j, neo4j_config):
-    """后台处理JSON - 修改版"""
+    """后台处理JSON - 支持控制台实时显示"""
     try:
         processing_status[process_id].update({
             'progress': 30,
@@ -2678,15 +2722,37 @@ def process_json_background(process_id, filepath, domain, import_neo4j, neo4j_co
         print(f"\n🚀 开始处理JSON文件: {filepath}")
         print(f"📋 处理参数: 领域={domain}")
 
-        # 同样修改这里
-        result = subprocess.run(
+        # 同样使用实时输出模式
+        process = subprocess.Popen(
             cmd,
-            timeout=1800,
-            stderr=subprocess.PIPE,
-            text=True
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            universal_newlines=True,
+            bufsize=1
         )
 
-        if result.returncode == 0:
+        # 实时读取并显示输出
+        while True:
+            output = process.stdout.readline()
+            if output == '' and process.poll() is not None:
+                break
+            if output:
+                print(output.strip())
+
+                # 更新进度
+                if "知识提取" in output or "图谱生成" in output:
+                    try:
+                        current_progress = min(95, processing_status[process_id]['progress'] + 5)
+                        processing_status[process_id].update({
+                            'progress': current_progress,
+                            'message': output.strip()
+                        })
+                    except:
+                        pass
+
+        return_code = process.poll()
+
+        if return_code == 0:
             print(f"✅ JSON处理完成: {filepath}")
             processing_status[process_id].update({
                 'status': 'completed',
@@ -2699,11 +2765,10 @@ def process_json_background(process_id, filepath, domain, import_neo4j, neo4j_co
                 }
             })
         else:
-            error_msg = result.stderr if result.stderr else 'Processing failed'
-            print(f"❌ JSON处理失败: {error_msg}")
+            print(f"❌ JSON处理失败，返回码: {return_code}")
             processing_status[process_id].update({
                 'status': 'error',
-                'error': error_msg
+                'error': f'Processing failed with return code {return_code}'
             })
 
     except Exception as e:
@@ -2712,6 +2777,52 @@ def process_json_background(process_id, filepath, domain, import_neo4j, neo4j_co
             'status': 'error',
             'error': str(e)
         })
+
+# 如果你想要更详细的进度解析，可以添加这个辅助函数
+def parse_and_update_progress(output_line, process_id):
+    """解析输出行并更新详细进度"""
+    try:
+        line = output_line.strip()
+
+        # 解析进度条信息
+        if "[进度]" in line and "%" in line:
+            # 提取百分比
+            import re
+            percentage_match = re.search(r'(\d+)%', line)
+            if percentage_match:
+                percentage = int(percentage_match.group(1))
+                # 将OCR进度映射到总体进度 (OCR占40-80%)
+                total_progress = 40 + int(percentage * 0.4)
+                processing_status[process_id].update({
+                    'progress': min(total_progress, 80),
+                    'message': f'OCR进度: {percentage}%'
+                })
+
+        # 解析批次完成信息
+        elif "批次" in line and "完成" in line:
+            # 提取批次信息
+            batch_match = re.search(r'批次(\d+)', line)
+            if batch_match:
+                batch_num = int(batch_match.group(1))
+                processing_status[process_id].update({
+                    'message': f'已完成批次 {batch_num}'
+                })
+
+        # 解析知识提取进度
+        elif "知识提取" in line:
+            processing_status[process_id].update({
+                'progress': 85,
+                'message': '正在提取知识点...'
+            })
+
+        elif "Neo4j" in line:
+            processing_status[process_id].update({
+                'progress': 95,
+                'message': '正在导入Neo4j数据库...'
+            })
+
+    except Exception as e:
+        pass  # 忽略解析错误
 
 def main():
     """主函数"""
