@@ -40,7 +40,7 @@ def print_banner():
 
 def check_requirements():
     """检查运行环境"""
-    print("🔍 检查运行环境...")
+    print("[检查] 检查运行环境...")
 
     # 检查必要的目录
     required_dirs = [

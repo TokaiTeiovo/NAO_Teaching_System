@@ -473,7 +473,227 @@ KNOWLEDGE_GRAPH_TEMPLATE = """
             font-size: 0.9em;
             margin-top: 20px;
         }
-
+        
+        /* 步骤进度条样式 */
+        .steps-progress {
+            margin-bottom: 20px;
+        }
+        
+        .step-item {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            margin: 10px 0;
+            background: #f8fafc;
+            border-radius: 10px;
+            border-left: 4px solid #e2e8f0;
+            transition: all 0.3s ease;
+        }
+        
+        .step-item.active {
+            background: rgba(102, 126, 234, 0.1);
+            border-left-color: #667eea;
+            transform: translateX(5px);
+        }
+        
+        .step-item.completed {
+            background: rgba(72, 187, 120, 0.1);
+            border-left-color: #48bb78;
+        }
+        
+        .step-item.error {
+            background: rgba(245, 101, 101, 0.1);
+            border-left-color: #f56565;
+        }
+        
+        .step-number {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #e2e8f0;
+            color: #4a5568;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 15px;
+            transition: all 0.3s ease;
+        }
+        
+        .step-item.active .step-number {
+            background: #667eea;
+            color: white;
+        }
+        
+        .step-item.completed .step-number {
+            background: #48bb78;
+            color: white;
+        }
+        
+        .step-item.error .step-number {
+            background: #f56565;
+            color: white;
+        }
+        
+        .step-content {
+            flex: 1;
+        }
+        
+        .step-title {
+            font-weight: bold;
+            color: #4a5568;
+            font-size: 1.1em;
+            margin-bottom: 3px;
+        }
+        
+        .step-description {
+            color: #718096;
+            font-size: 0.9em;
+        }
+        
+        .step-status {
+            font-size: 1.5em;
+            margin-left: 15px;
+        }
+        
+        .step-item.active .step-status {
+            animation: spin 2s linear infinite;
+        }
+        
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        .overall-progress {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 10px;
+        }
+        
+        /* 隐藏旧的进度条容器 */
+        .progress-container {
+            display: none;
+        }
+        
+        .progress-container.show {
+            display: block;
+        }
+        
+        .spinner {
+            animation: spin 1.5s linear infinite;
+        }
+        
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        /* 步骤进度条样式 */
+        .steps-progress {
+            margin-bottom: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .step-item {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            margin: 10px 0;
+            background: #f8fafc;
+            border-radius: 10px;
+            border-left: 4px solid #e2e8f0;
+            transition: all 0.3s ease;
+        }
+        
+        .step-item.waiting {
+            border-left-color: #e2e8f0;
+        }
+        
+        .step-item.active {
+            background: rgba(102, 126, 234, 0.1);
+            border-left-color: #667eea;
+            transform: translateX(5px);
+        }
+        
+        .step-item.completed {
+            background: rgba(72, 187, 120, 0.1);
+            border-left-color: #48bb78;
+            opacity: 0.8;
+        }
+        
+        .step-item.error {
+            background: rgba(245, 101, 101, 0.1);
+            border-left-color: #f56565;
+        }
+        
+        .step-number {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #e2e8f0;
+            color: #4a5568;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 15px;
+            transition: all 0.3s ease;
+        }
+        
+        .step-item.active .step-number {
+            background: #667eea;
+            color: white;
+        }
+        
+        .step-item.completed .step-number {
+            background: #48bb78;
+            color: white;
+        }
+        
+        .step-item.error .step-number {
+            background: #f56565;
+            color: white;
+        }
+        
+        .step-content {
+            flex: 1;
+        }
+        
+        .step-title {
+            font-weight: bold;
+            color: #4a5568;
+            font-size: 1.1em;
+            margin-bottom: 3px;
+        }
+        
+        .step-description {
+            color: #718096;
+            font-size: 0.9em;
+        }
+        
+        .step-status {
+            font-size: 1.5em;
+            margin-left: 15px;
+        }
+        
+        .overall-progress {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 10px;
+        }
+        
+        /* 隐藏/显示进度容器 */
+        .progress-container {
+            display: none;
+        }
+        
+        .progress-container.show {
+            display: block;
+        }
         @media (max-width: 768px) {
             .main-content {
                 grid-template-columns: 1fr;
@@ -520,10 +740,13 @@ KNOWLEDGE_GRAPH_TEMPLATE = """
                         <div class="upload-area" onclick="document.getElementById('pdf-file').click()">
                             <div class="upload-icon">📄</div>
                             <div class="upload-text">点击选择PDF文件</div>
-                            <div class="upload-hint">支持格式: PDF (最大100MB)</div>
+                            <div class="upload-hint">
+                                支持格式: PDF (最大100MB)<br>
+                                <small style="color: #e53e3e;">大文件建议: 页数超过100页的文档将自动限制处理前50页</small>
+                            </div>
                         </div>
-                        <input type="file" id="pdf-file" name="file" class="file-input" accept=".pdf" onchange="handleFileSelect(this, 'pdf')">
-
+                        <input type="file" id="pdf-file" name="file" class="file-input" accept=".pdf" onchange="handlePDFFileSelect(this)">
+                
                         <div class="form-group">
                             <label for="pdf-domain">知识领域</label>
                             <select id="pdf-domain" name="domain" class="form-control">
@@ -539,12 +762,19 @@ KNOWLEDGE_GRAPH_TEMPLATE = """
                                 <option value="语言学">语言学</option>
                             </select>
                         </div>
-
+                
                         <div class="form-group">
                             <label for="pdf-batch-size">批次大小</label>
-                            <input type="number" id="pdf-batch-size" name="batch_size" class="form-control" value="10" min="1" max="50">
+                            <input type="number" id="pdf-batch-size" name="batch_size" class="form-control" value="5" min="1" max="20">
+                            <small style="color: #718096;">建议: 大文件使用较小的批次(3-5页)</small>
                         </div>
-
+                
+                        <div class="form-group">
+                            <label for="pdf-max-pages">最大处理页数</label>
+                            <input type="number" id="pdf-max-pages" name="max_pages" class="form-control" value="50" min="1" max="200">
+                            <small style="color: #718096;">为避免超时，建议限制处理页数</small>
+                        </div>
+                
                         <button type="button" class="btn btn-primary" onclick="processPDF()">🚀 生成知识图谱</button>
                     </form>
                 </div>
@@ -608,12 +838,19 @@ KNOWLEDGE_GRAPH_TEMPLATE = """
                     </form>
                 </div>
 
-                <!-- 进度条 -->
+                <!-- 详细步骤进度条 -->
                 <div id="progress-container" class="progress-container">
-                    <div class="progress-bar">
-                        <div id="progress-fill" class="progress-fill"></div>
+                    <div class="steps-progress">
+                        <!-- 步骤将通过JavaScript动态生成 -->
                     </div>
-                    <div id="progress-text" style="text-align: center; margin-top: 10px;">准备中...</div>
+                    
+                    <!-- 总体进度条 -->
+                    <div class="overall-progress">
+                        <div class="progress-bar">
+                            <div id="progress-fill" class="progress-fill"></div>
+                        </div>
+                        <div id="progress-text" style="text-align: center; margin-top: 10px;">准备中...</div>
+                    </div>
                 </div>
 
                 <!-- 状态消息 -->
@@ -665,7 +902,219 @@ KNOWLEDGE_GRAPH_TEMPLATE = """
 
     <script>
         let currentProcessId = null;
+        let currentFlow = [];  // 确保这个变量在全局作用域中定义
+        let currentFileType = '';
 
+        // 步骤配置 - 根据不同文件类型定义不同流程
+        const PROCESSING_FLOWS = {
+            pdf: [
+                { id: 1, name: '文件上传', description: '上传并验证PDF文件' },
+                { id: 2, name: 'PDF转图像', description: '将PDF页面转换为图像' },
+                { id: 3, name: 'OCR文本提取', description: '使用OCR技术提取文本内容' },
+                { id: 4, name: 'LLM知识提取', description: '使用大语言模型提取概念和定义' },
+                { id: 5, name: '关系抽取', description: '分析概念间的关联关系' },
+                { id: 6, name: '知识图谱生成', description: '构建完整的知识图谱' },
+                { id: 7, name: '数据库导入', description: '导入到Neo4j图数据库' }
+            ],
+            images: [
+                { id: 1, name: '文件上传', description: '上传并验证图片文件' },
+                { id: 2, name: 'OCR文本提取', description: '使用OCR技术提取图片文本' },
+                { id: 3, name: 'LLM知识提取', description: '使用大语言模型提取概念和定义' },
+                { id: 4, name: '关系抽取', description: '分析概念间的关联关系' },
+                { id: 5, name: '知识图谱生成', description: '构建完整的知识图谱' },
+                { id: 6, name: '数据库导入', description: '导入到Neo4j图数据库' }
+            ],
+            json: [
+                { id: 1, name: '文件上传', description: '上传并验证JSON文件' },
+                { id: 2, name: 'LLM知识提取', description: '使用大语言模型提取概念和定义' },
+                { id: 3, name: '关系抽取', description: '分析概念间的关联关系' },
+                { id: 4, name: '知识图谱生成', description: '构建完整的知识图谱' },
+                { id: 5, name: '数据库导入', description: '导入到Neo4j图数据库' }
+            ]
+        };
+        
+        // 动态生成步骤进度条
+        function generateStepsHTML(flowType) {
+            const steps = PROCESSING_FLOWS[flowType];
+            let stepsHTML = '';
+            
+            steps.forEach(step => {
+                stepsHTML += `
+                    <div class="step-item" id="step-${step.id}">
+                        <div class="step-number">${step.id}</div>
+                        <div class="step-content">
+                            <div class="step-title">${step.name}</div>
+                            <div class="step-description">${step.description}</div>
+                        </div>
+                        <div class="step-status">⏳</div>
+                    </div>
+                `;
+            });
+            
+            return stepsHTML;
+        }
+    
+        // 初始化步骤进度条
+        function initializeSteps(fileType) {
+            currentFileType = fileType;
+            currentFlow = PROCESSING_FLOWS[fileType];
+            
+            const stepsContainer = document.querySelector('.steps-progress');
+            stepsContainer.innerHTML = generateStepsHTML(fileType);
+            
+            // 显示进度容器
+            const progressContainer = document.getElementById('progress-container');
+            progressContainer.classList.add('show');
+            
+            // 重置所有步骤状态
+            currentFlow.forEach(step => {
+                updateStepStatus(step.id, 'waiting');
+            });
+        }
+    
+        // 更新步骤状态
+        function updateStepStatus(stepNumber, status, message = '') {
+            const stepElement = document.getElementById(`step-${stepNumber}`);
+            if (!stepElement) return;
+    
+            // 移除所有状态类
+            stepElement.classList.remove('active', 'completed', 'error', 'waiting');
+            
+            // 添加新状态
+            stepElement.classList.add(status);
+            
+            // 更新状态图标
+            const statusElement = stepElement.querySelector('.step-status');
+            switch(status) {
+                case 'active':
+                    statusElement.innerHTML = '<div class="spinner">🔄</div>';
+                    statusElement.title = '正在处理...';
+                    break;
+                case 'completed':
+                    statusElement.textContent = '✅';
+                    statusElement.title = '已完成';
+                    break;
+                case 'error':
+                    statusElement.textContent = '❌';
+                    statusElement.title = '处理失败';
+                    break;
+                case 'waiting':
+                default:
+                    statusElement.textContent = '⏳';
+                    statusElement.title = '等待中';
+            }
+            
+            // 更新描述
+            if (message) {
+                const descElement = stepElement.querySelector('.step-description');
+                descElement.textContent = message;
+            }
+        }
+    
+        // 显示详细进度
+        function showDetailedProgress(currentStepId, message = '') {
+            // 确保currentFlow已初始化
+            if (!currentFlow || currentFlow.length === 0) {
+                console.warn('currentFlow未初始化，使用默认PDF流程');
+                currentFlow = PROCESSING_FLOWS.pdf;
+                currentFileType = 'pdf';
+            }
+            
+            const totalSteps = currentFlow.length;
+            const progressPercent = Math.round((currentStepId / totalSteps) * 100);
+            
+            // 更新总体进度条
+            const progressFill = document.getElementById('progress-fill');
+            const progressText = document.getElementById('progress-text');
+            
+            if (progressFill) progressFill.style.width = progressPercent + '%';
+            if (progressText) progressText.textContent = `步骤 ${currentStepId}/${totalSteps}: ${message}`;
+            
+            // 更新步骤状态
+            currentFlow.forEach(step => {
+                if (step.id < currentStepId) {
+                    updateStepStatus(step.id, 'completed');
+                } else if (step.id === currentStepId) {
+                    updateStepStatus(step.id, 'active', message);
+                } else {
+                    updateStepStatus(step.id, 'waiting');
+                }
+            });
+            
+            // 滚动到当前步骤
+            const currentStepElement = document.getElementById(`step-${currentStepId}`);
+            if (currentStepElement) {
+                currentStepElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+    
+        // 显示步骤错误
+        function showStepError(stepId, errorMessage) {
+            updateStepStatus(stepId, 'error', errorMessage);
+            showStatus(`步骤失败: ${errorMessage}`, 'error');
+            
+            // 更新进度文本
+            const progressText = document.getElementById('progress-text');
+            if (progressText) {
+                progressText.textContent = `处理失败: ${errorMessage}`;
+            }
+        }
+    
+        // 显示所有步骤完成
+        function showAllStepsCompleted(result) {
+            // 确保currentFlow已初始化
+            if (!currentFlow || currentFlow.length === 0) {
+                console.warn('currentFlow未初始化，使用默认PDF流程');
+                currentFlow = PROCESSING_FLOWS.pdf;
+            }
+            
+            currentFlow.forEach(step => {
+                updateStepStatus(step.id, 'completed');
+            });
+            
+            const progressFill = document.getElementById('progress-fill');
+            const progressText = document.getElementById('progress-text');
+            
+            if (progressFill) progressFill.style.width = '100%';
+            if (progressText) progressText.textContent = '所有步骤已完成！';
+            
+            const conceptsCount = result.concepts_count || 'N/A';
+            const relationsCount = result.relations_count || 'N/A';
+            showStatus(`知识图谱生成完成！共提取 ${conceptsCount} 个概念，${relationsCount} 个关系`, 'success');
+        }
+    
+        // 根据文件类型和进度映射步骤
+        function mapProgressToStep(fileType, progress) {
+            const steps = PROCESSING_FLOWS[fileType];
+            const totalSteps = steps.length;
+            
+            if (fileType === 'pdf') {
+                if (progress <= 5) return { step: 1, message: '文件验证完成' };
+                if (progress <= 25) return { step: 2, message: 'PDF转图像处理中...' };
+                if (progress <= 40) return { step: 3, message: 'OCR文本提取中...' };
+                if (progress <= 60) return { step: 4, message: 'LLM知识提取中...' };
+                if (progress <= 75) return { step: 5, message: '关系抽取中...' };
+                if (progress <= 85) return { step: 6, message: '知识图谱生成中...' };
+                if (progress <= 95) return { step: 7, message: 'Neo4j数据库导入中...' };
+                return { step: 7, message: '处理完成' };
+            } else if (fileType === 'images') {
+                if (progress <= 10) return { step: 1, message: '图片文件验证完成' };
+                if (progress <= 40) return { step: 2, message: '图片OCR文本提取中...' };
+                if (progress <= 60) return { step: 3, message: 'LLM知识提取中...' };
+                if (progress <= 75) return { step: 4, message: '关系抽取中...' };
+                if (progress <= 90) return { step: 5, message: '知识图谱生成中...' };
+                return { step: 6, message: 'Neo4j数据库导入中...' };
+            } else if (fileType === 'json') {
+                if (progress <= 15) return { step: 1, message: 'JSON文件验证完成' };
+                if (progress <= 40) return { step: 2, message: 'LLM知识提取中...' };
+                if (progress <= 65) return { step: 3, message: '关系抽取中...' };
+                if (progress <= 85) return { step: 4, message: '知识图谱生成中...' };
+                return { step: 5, message: 'Neo4j数据库导入中...' };
+            }
+            
+            return { step: 1, message: '处理中...' };
+        }
+        
         // 切换选项卡
         function switchTab(tabName) {
             // 隐藏所有选项卡内容
@@ -747,12 +1196,12 @@ KNOWLEDGE_GRAPH_TEMPLATE = """
         async function processPDF() {
             const fileInput = document.getElementById('pdf-file');
             const file = fileInput.files[0];
-
+        
             if (!file) {
                 showStatus('请选择PDF文件', 'error');
                 return;
             }
-
+        
             const formData = new FormData();
             formData.append('file', file);
             formData.append('domain', document.getElementById('pdf-domain').value);
@@ -761,30 +1210,34 @@ KNOWLEDGE_GRAPH_TEMPLATE = """
             formData.append('neo4j_uri', document.getElementById('neo4j-uri').value);
             formData.append('neo4j_user', document.getElementById('neo4j-user').value);
             formData.append('neo4j_password', document.getElementById('neo4j-password').value);
-
+        
             try {
-                showStatus('开始处理PDF文件...', 'info');
-                showProgress(10, '上传文件中...');
+                // 步骤1: 文件上传
+                showDetailedProgress(1, 6, '上传PDF文件到服务器...');
                 addLog('开始PDF知识图谱生成流程');
-
+        
                 const response = await fetch('/api/process_pdf', {
                     method: 'POST',
                     body: formData
                 });
-
+        
                 if (response.ok) {
                     const result = await response.json();
                     currentProcessId = result.process_id;
-
+                    
+                    // 步骤2: 开始OCR处理
+                    showDetailedProgress(2, 6, '开始OCR文本提取...');
+                    addLog('文件上传完成，开始OCR处理');
+        
                     // 开始轮询处理状态
                     pollProcessStatus();
                 } else {
                     const error = await response.json();
-                    showStatus(`处理失败: ${error.message}`, 'error');
+                    showStepError(1, error.message);
                     addLog(`错误: ${error.message}`);
                 }
             } catch (error) {
-                showStatus(`网络错误: ${error.message}`, 'error');
+                showStepError(1, error.message);
                 addLog(`网络错误: ${error.message}`);
             }
         }
@@ -878,34 +1331,66 @@ KNOWLEDGE_GRAPH_TEMPLATE = """
         }
 
         // 轮询处理状态
-        async function pollProcessStatus() {
-            if (!currentProcessId) return;
-
-            try {
-                const response = await fetch(`/api/process_status/${currentProcessId}`);
-                const status = await response.json();
-
-                if (status.status === 'processing') {
-                    showProgress(status.progress, status.message);
-                    addLog(status.message);
-                    setTimeout(pollProcessStatus, 2000); // 2秒后再次检查
-                } else if (status.status === 'completed') {
-                    showProgress(100, '处理完成！');
-                    showStatus(`知识图谱生成完成！共提取 ${status.result.concepts_count} 个概念`, 'success');
-                    addLog(`处理完成: ${status.result.concepts_count} 个概念, ${status.result.relations_count} 个关系`);
-                    if (status.result.neo4j_imported) {
-                        addLog('成功导入到Neo4j数据库');
+         async function pollProcessStatus() {
+                if (!currentProcessId) return;
+        
+                try {
+                    const response = await fetch(`/api/process_status/${currentProcessId}`);
+                    const status = await response.json();
+        
+                    if (status.status === 'processing') {
+                        // 根据文件类型和进度映射到具体步骤
+                        const stepInfo = mapProgressToStep(currentFileType, status.progress);
+                        showDetailedProgress(stepInfo.step, stepInfo.message);
+                        addLog(status.message || stepInfo.message);
+                        setTimeout(pollProcessStatus, 2000);
+                        
+                    } else if (status.status === 'completed') {
+                        showAllStepsCompleted(status.result);
+                        addLog(`处理完成: ${status.result.concepts_count || 'N/A'} 个概念, ${status.result.relations_count || 'N/A'} 个关系`);
+                        if (status.result.neo4j_imported) {
+                            addLog('成功导入到Neo4j数据库');
+                        }
+                        currentProcessId = null;
+                        
+                    } else if (status.status === 'error') {
+                        // 根据当前文件类型和错误信息确定错误步骤
+                        const currentStep = getCurrentStepFromError(status.error);
+                        showStepError(currentStep, status.error);
+                        addLog(`处理失败: ${status.error}`);
+                        currentProcessId = null;
                     }
-                    currentProcessId = null;
-                } else if (status.status === 'error') {
-                    showStatus(`处理失败: ${status.error}`, 'error');
-                    addLog(`处理失败: ${status.error}`);
-                    currentProcessId = null;
+                } catch (error) {
+                    addLog(`状态检查失败: ${error.message}`);
+                    setTimeout(pollProcessStatus, 5000);
                 }
-            } catch (error) {
-                addLog(`状态检查失败: ${error.message}`);
-                setTimeout(pollProcessStatus, 5000); // 出错时延长轮询间隔
             }
+
+        // 根据错误信息确定当前步骤
+        function getCurrentStepFromError(errorMessage) {
+            const error = errorMessage.toLowerCase();
+            
+            if (currentFileType === 'pdf') {
+                if (error.includes('pdf') || error.includes('convert')) return 2;
+                if (error.includes('ocr')) return 3;
+                if (error.includes('llm') || error.includes('knowledge')) return 4;
+                if (error.includes('relation')) return 5;
+                if (error.includes('graph')) return 6;
+                if (error.includes('neo4j')) return 7;
+            } else if (currentFileType === 'images') {
+                if (error.includes('ocr')) return 2;
+                if (error.includes('llm') || error.includes('knowledge')) return 3;
+                if (error.includes('relation')) return 4;
+                if (error.includes('graph')) return 5;
+                if (error.includes('neo4j')) return 6;
+            } else if (currentFileType === 'json') {
+                if (error.includes('llm') || error.includes('knowledge')) return 2;
+                if (error.includes('relation')) return 3;
+                if (error.includes('graph')) return 4;
+                if (error.includes('neo4j')) return 5;
+            }
+            
+            return 1; // 默认返回第一步
         }
 
         // 测试Neo4j连接
@@ -978,34 +1463,36 @@ KNOWLEDGE_GRAPH_TEMPLATE = """
         });
 
         // 拖拽上传功能
-        document.querySelectorAll('.upload-area').forEach(area => {
-            area.addEventListener('dragover', function(e) {
-                e.preventDefault();
-                this.classList.add('dragover');
-            });
-
-            area.addEventListener('dragleave', function(e) {
-                e.preventDefault();
-                this.classList.remove('dragover');
-            });
-
-            area.addEventListener('drop', function(e) {
-                e.preventDefault();
-                this.classList.remove('dragover');
-
-                const files = e.dataTransfer.files;
-                const tabId = this.closest('.tab-content').id;
-
-                if (tabId === 'pdf-tab' && files.length > 0) {
-                    document.getElementById('pdf-file').files = files;
-                    handleFileSelect({files: files}, 'pdf');
-                } else if (tabId === 'json-tab' && files.length > 0) {
-                    document.getElementById('json-file').files = files;
-                    handleFileSelect({files: files}, 'json');
-                } else if (tabId === 'images-tab' && files.length > 0) {
-                    document.getElementById('images-folder').files = files;
-                    handleFileSelect({files: files}, 'images');
-                }
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.upload-area').forEach(area => {
+                area.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                    this.classList.add('dragover');
+                });
+    
+                area.addEventListener('dragleave', function(e) {
+                    e.preventDefault();
+                    this.classList.remove('dragover');
+                });
+    
+                area.addEventListener('drop', function(e) {
+                    e.preventDefault();
+                    this.classList.remove('dragover');
+    
+                    const files = e.dataTransfer.files;
+                    const tabId = this.closest('.tab-content').id;
+    
+                    if (tabId === 'pdf-tab' && files.length > 0) {
+                        document.getElementById('pdf-file').files = files;
+                        handleFileSelect({files: files}, 'pdf');
+                    } else if (tabId === 'json-tab' && files.length > 0) {
+                        document.getElementById('json-file').files = files;
+                        handleFileSelect({files: files}, 'json');
+                    } else if (tabId === 'images-tab' && files.length > 0) {
+                        document.getElementById('images-folder').files = files;
+                        handleFileSelect({files: files}, 'images');
+                    }
+                });
             });
         });
     </script>
@@ -1474,6 +1961,7 @@ CHAT_TEMPLATE = """
     </div>
 
     <script>
+        
         class VoiceChatSystem {
             constructor() {
                 this.websocket = null;
@@ -1770,18 +2258,18 @@ CHAT_TEMPLATE = """
 
         // 全局实例
         let voiceChatSystem;
-
+        
         // 页面加载完成后初始化
         document.addEventListener('DOMContentLoaded', function() {
             voiceChatSystem = new VoiceChatSystem();
-
+            
             // 绑定全局函数
             window.connectToServer = () => voiceChatSystem.connectToServer();
             window.toggleRecording = () => voiceChatSystem.toggleRecording();
             window.sendMessage = () => voiceChatSystem.sendMessage();
             window.handleKeyPress = (event) => voiceChatSystem.handleKeyPress(event);
         });
-
+            
         // 页面卸载时清理连接
         window.addEventListener('beforeunload', function() {
             if (voiceChatSystem && voiceChatSystem.websocket) {
@@ -2019,7 +2507,7 @@ def get_system_stats():
 
 # 后台处理函数
 def process_pdf_background(process_id, filepath, domain, batch_size, import_neo4j, neo4j_config):
-    """后台处理PDF"""
+    """后台处理PDF - 修改版，支持实时进度显示"""
     try:
         processing_status[process_id].update({
             'progress': 20,
@@ -2049,35 +2537,50 @@ def process_pdf_background(process_id, filepath, domain, batch_size, import_neo4
             'message': '正在进行知识提取...'
         })
 
-        # 执行命令
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
+        print(f"\n🚀 开始处理PDF: {filepath}")
+        print(f"📋 处理参数: 领域={domain}, 批次={batch_size}")
+
+        # 修改这里：不重定向输出，让进度条在控制台正常显示
+        result = subprocess.run(
+            cmd,
+            # 注释掉这两行，让输出直接显示在控制台
+            # capture_output=True,
+            # text=True,
+            timeout=3600,
+            # 可选：只重定向stderr，保留stdout给进度条
+            stderr=subprocess.PIPE,
+            text=True
+        )
 
         if result.returncode == 0:
+            print(f"✅ PDF处理完成: {filepath}")
             processing_status[process_id].update({
                 'status': 'completed',
                 'progress': 100,
                 'message': '处理完成！',
                 'result': {
-                    'concepts_count': 'N/A',  # 这里需要从输出中解析
+                    'concepts_count': 'N/A',
                     'relations_count': 'N/A',
                     'neo4j_imported': import_neo4j
                 }
             })
         else:
+            error_msg = result.stderr if hasattr(result, 'stderr') and result.stderr else 'Processing failed'
+            print(f"❌ PDF处理失败: {error_msg}")
             processing_status[process_id].update({
                 'status': 'error',
-                'error': result.stderr or 'Processing failed'
+                'error': error_msg
             })
 
     except Exception as e:
+        print(f"❌ 处理过程中出现异常: {e}")
         processing_status[process_id].update({
             'status': 'error',
             'error': str(e)
         })
 
-
 def process_images_background(process_id, images_folder, domain, import_neo4j, neo4j_config):
-    """后台处理图片"""
+    """后台处理图片 - 修改版"""
     try:
         processing_status[process_id].update({
             'progress': 20,
@@ -2105,9 +2608,19 @@ def process_images_background(process_id, images_folder, domain, import_neo4j, n
             'message': '正在进行知识提取...'
         })
 
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
+        print(f"\n🚀 开始处理图片文件夹: {images_folder}")
+        print(f"📋 处理参数: 领域={domain}")
+
+        # 同样修改这里
+        result = subprocess.run(
+            cmd,
+            timeout=3600,
+            stderr=subprocess.PIPE,
+            text=True
+        )
 
         if result.returncode == 0:
+            print(f"✅ 图片处理完成: {images_folder}")
             processing_status[process_id].update({
                 'status': 'completed',
                 'progress': 100,
@@ -2119,20 +2632,22 @@ def process_images_background(process_id, images_folder, domain, import_neo4j, n
                 }
             })
         else:
+            error_msg = result.stderr if result.stderr else 'Processing failed'
+            print(f"❌ 图片处理失败: {error_msg}")
             processing_status[process_id].update({
                 'status': 'error',
-                'error': result.stderr or 'Processing failed'
+                'error': error_msg
             })
 
     except Exception as e:
+        print(f"❌ 处理过程中出现异常: {e}")
         processing_status[process_id].update({
             'status': 'error',
             'error': str(e)
         })
 
-
 def process_json_background(process_id, filepath, domain, import_neo4j, neo4j_config):
-    """后台处理JSON"""
+    """后台处理JSON - 修改版"""
     try:
         processing_status[process_id].update({
             'progress': 30,
@@ -2160,9 +2675,19 @@ def process_json_background(process_id, filepath, domain, import_neo4j, neo4j_co
             'message': '正在生成知识图谱...'
         })
 
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
+        print(f"\n🚀 开始处理JSON文件: {filepath}")
+        print(f"📋 处理参数: 领域={domain}")
+
+        # 同样修改这里
+        result = subprocess.run(
+            cmd,
+            timeout=1800,
+            stderr=subprocess.PIPE,
+            text=True
+        )
 
         if result.returncode == 0:
+            print(f"✅ JSON处理完成: {filepath}")
             processing_status[process_id].update({
                 'status': 'completed',
                 'progress': 100,
@@ -2174,17 +2699,19 @@ def process_json_background(process_id, filepath, domain, import_neo4j, neo4j_co
                 }
             })
         else:
+            error_msg = result.stderr if result.stderr else 'Processing failed'
+            print(f"❌ JSON处理失败: {error_msg}")
             processing_status[process_id].update({
                 'status': 'error',
-                'error': result.stderr or 'Processing failed'
+                'error': error_msg
             })
 
     except Exception as e:
+        print(f"❌ 处理过程中出现异常: {e}")
         processing_status[process_id].update({
             'status': 'error',
             'error': str(e)
         })
-
 
 def main():
     """主函数"""

@@ -53,7 +53,7 @@ for directory in [SHARED_DIR, CONFIG_DIR, MODELS_DIR, TEMP_DIR, OUTPUT_DIR, LOG_
 
 # ==================== 日志配置 ====================
 def setup_logger(name, log_level="INFO", log_file=None):
-    """设置带颜色的日志记录器"""
+    """设置带颜色的日志记录器 - 修复编码问题"""
     if log_file:
         log_file = LOG_DIR / log_file if not Path(log_file).is_absolute() else Path(log_file)
         log_file.parent.mkdir(parents=True, exist_ok=True)
@@ -86,13 +86,18 @@ def setup_logger(name, log_level="INFO", log_file=None):
 
     # 在Windows下设置控制台编码
     try:
-        import sys
         if sys.platform.startswith('win'):
             import codecs
-            # 尝试设置UTF-8编码
-            console_handler.stream = codecs.getwriter('utf-8')(console_handler.stream.buffer, 'replace')
-    except:
-        pass  # 如果设置失败，继续使用默认设置
+            import io
+            # 创建一个UTF-8编码的包装器
+            console_handler.stream = io.TextIOWrapper(
+                console_handler.stream.buffer,
+                encoding='utf-8',
+                errors='replace'
+            )
+    except Exception as e:
+        # 如果设置失败，继续使用默认设置，但避免emoji输出
+        pass
 
     logger.addHandler(console_handler)
 
@@ -103,7 +108,6 @@ def setup_logger(name, log_level="INFO", log_file=None):
 
     logger._configured = True
     return logger
-
 
 # 设置日志
 logger = setup_logger('knowledge_extractor', log_file='knowledge_extractor.log')
@@ -349,6 +353,13 @@ class ImageFolderOCRExtractor:
             logger.error(f"OCR识别图片 {image_file.name} 失败: {e}")
             return ""
 
+    # 找到 knowledge_extractor/knowledge_extractor_integrated.py 文件中的 _clean_ocr_text 方法
+    # 将错误的这行：
+    # text = re.sub(r'www\..*?\.com\s*, ', text, flags=re.MULTILINE)
+    #
+    # 修改为：
+    # text = re.sub(r'www\..*?\.com\s*', '', text, flags=re.MULTILINE)
+
     def _clean_ocr_text(self, text):
         """清理OCR识别的文本"""
         if not text:
@@ -363,8 +374,10 @@ class ImageFolderOCRExtractor:
 
         # 处理连续换行
         text = re.sub(r'\n{3,}', '\n\n', text)
-        # 移除水印
+
+        # 移除水印 - 正确的写法
         text = re.sub(r'www\..*?\.com\s*$', '', text, flags=re.MULTILINE)
+
         # 处理目录格式
         text = re.sub(r'(\d+\.\d+.*?)\.{2,}(\d+)', r'\1 \2', text)
 
@@ -505,7 +518,7 @@ class EnhancedPDFOCRExtractor:
         num_batches = (pages_to_process + self.batch_size - 1) // self.batch_size
 
         # 总体进度条
-        with tqdm(total=pages_to_process, desc="📄 总体进度", unit="页",
+        with tqdm(total=pages_to_process, desc="[进度] 总体进度", unit="页",
                   bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]") as pbar_total:
 
             for batch_idx in range(num_batches):
@@ -537,7 +550,7 @@ class EnhancedPDFOCRExtractor:
                         pbar_pdf.update(len(pages))
 
                     logger.info(
-                        f"批次{batch_idx + 1}: 成功转换{len(pages)}页为图像 (每页约{self._estimate_image_size(dpi):.1f}MB)")
+                        f"批次{batch_idx + 1}， (每页约{self._estimate_image_size(dpi):.1f}MB)")
 
                 except Exception as e:
                     logger.error(f"批次{batch_idx + 1}: PDF转图像失败: {e}")
@@ -688,12 +701,14 @@ class EnhancedPDFOCRExtractor:
 
         # 处理连续换行
         text = re.sub(r'\n{3,}', '\n\n', text)
-        # 移除水印
-        text = re.sub(r'www\..*?\.com\s*, ', text, flags=re.MULTILINE)
+
+        # 移除水印 - 正确的写法
+        text = re.sub(r'www\..*?\.com\s*$', '', text, flags=re.MULTILINE)
+
         # 处理目录格式
         text = re.sub(r'(\d+\.\d+.*?)\.{2,}(\d+)', r'\1 \2', text)
 
-        return text
+        return text.strip()
 
     def get_processing_stats(self):
         """获取处理统计信息"""
@@ -1248,13 +1263,13 @@ def print_processing_info(mode, source_path, args):
         extractor = ImageFolderOCRExtractor(source_path, args.ocr_engine, args.ocr_lang, args.batch_size)
         info = extractor.get_folder_info()
 
-        print(f"\n🖼️  图片文件夹信息:")
-        print(f"   📁 文件夹路径: {source_path}")
-        print(f"   🖼️  图片总数: {info['total_images']}")
+        print(f"\n[图片] 图片文件夹信息:")
+        print(f"   [文件夹] 路径: {source_path}")
+        print(f"   [图片] 总数: {info['total_images']}")
         if info['total_images'] > 0:
-            print(f"   📊 文件大小: {info['total_size_mb']:.1f} MB")
-            print(f"   📋 格式统计: {info['format_stats']}")
-            print(f"   📝 前几个文件: {info['first_few_files']}")
+            print(f"   [统计] 文件大小: {info['total_size_mb']:.1f} MB")
+            print(f"   [格式] 统计: {info['format_stats']}")
+            print(f"   [文件] 前几个: {info['first_few_files']}")
 
         # 计算处理范围
         start_index = args.start_index
@@ -1262,21 +1277,21 @@ def print_processing_info(mode, source_path, args):
         end_index = min(end_index, info['total_images'])
         items_to_process = end_index - start_index
 
-        print(f"\n🎯 处理计划:")
-        print(f"   🖼️  处理范围: 第{start_index + 1}张 - 第{end_index}张 (共{items_to_process}张)")
-        print(f"   📦 批次大小: {args.batch_size}张/批")
-        print(f"   🔄 预计批次: {(items_to_process + args.batch_size - 1) // args.batch_size}批")
-        print(f"   🔍 OCR引擎: {args.ocr_engine}")
-        print(f"   🎓 知识领域: {args.domain}")
+        print(f"\n[计划] 处理计划:")
+        print(f"   [范围] 处理范围: 第{start_index + 1}张 - 第{end_index}张 (共{items_to_process}张)")
+        print(f"   [批次] 批次大小: {args.batch_size}张/批")
+        print(f"   [预计] 预计批次: {(items_to_process + args.batch_size - 1) // args.batch_size}批")
+        print(f"   [OCR] OCR引擎: {args.ocr_engine}")
+        print(f"   [领域] 知识领域: {args.domain}")
 
     else:  # PDF模式
         pdf_info = PDFInfo.get_pdf_info(source_path)
-        print(f"\n📄 PDF文件信息:")
-        print(f"   📁 文件路径: {source_path}")
-        print(f"   📄 总页数: {pdf_info['total_pages']}")
-        print(f"   📊 文件大小: {pdf_info['file_size']:.1f} MB")
+        print(f"\n[PDF] PDF文件信息:")
+        print(f"   [文件] 文件路径: {source_path}")
+        print(f"   [页数] 总页数: {pdf_info['total_pages']}")
+        print(f"   [大小] 文件大小: {pdf_info['file_size']:.1f} MB")
         if pdf_info['title']:
-            print(f"   📝 标题: {pdf_info['title']}")
+            print(f"   [标题] 标题: {pdf_info['title']}")
 
         # 计算处理范围
         total_pages = pdf_info['total_pages']
@@ -1288,14 +1303,14 @@ def print_processing_info(mode, source_path, args):
         # 确定是否保存图像
         save_images = args.save_images and not args.no_save_images
 
-        print(f"\n🎯 处理计划:")
-        print(f"   📄 处理范围: 第{start_page + 1}页 - 第{end_page}页 (共{pages_to_process}页)")
-        print(f"   📦 批次大小: {args.batch_size}页/批")
-        print(f"   🔄 预计批次: {(pages_to_process + args.batch_size - 1) // args.batch_size}批")
-        print(f"   🖼️  图像DPI: {args.dpi}")
-        print(f"   📸 保存图像: {'是' if save_images else '否'}")
-        print(f"   🔍 OCR引擎: {args.ocr_engine}")
-        print(f"   🎓 知识领域: {args.domain}")
+        print(f"\n[计划] 处理计划:")
+        print(f"   [范围] 处理范围: 第{start_page + 1}页 - 第{end_page}页 (共{pages_to_process}页)")
+        print(f"   [批次] 批次大小: {args.batch_size}页/批")
+        print(f"   [预计] 预计批次: {(pages_to_process + args.batch_size - 1) // args.batch_size}批")
+        print(f"   [DPI] 图像DPI: {args.dpi}")
+        print(f"   [保存] 保存图像: {'是' if save_images else '否'}")
+        print(f"   [OCR] OCR引擎: {args.ocr_engine}")
+        print(f"   [领域] 知识领域: {args.domain}")
 
 
 def extract_from_json(json_path, args):
