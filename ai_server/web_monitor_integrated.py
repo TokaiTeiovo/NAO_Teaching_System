@@ -557,8 +557,7 @@ KNOWLEDGE_GRAPH_TEMPLATE = """
                             <div class="upload-text">选择图片文件夹</div>
                             <div class="upload-hint">支持格式: PNG, JPG, JPEG, GIF, BMP, TIFF</div>
                         </div>
-                        <input type="file" id="images-folder" name="files" class="file-input" multiple accept="image/*" onchange="handleFileSelect(this, 'images')">
-
+                        <input type="file" id="images-folder" name="files" class="file-input" webkitdirectory directory accept="image/*" onchange="handleFileSelect(this, 'images')">
                         <div class="form-group">
                             <label for="images-domain">知识领域</label>
                             <select id="images-domain" name="domain" class="form-control">
@@ -692,7 +691,11 @@ KNOWLEDGE_GRAPH_TEMPLATE = """
             if (files.length > 0) {
                 let message = '';
                 if (type === 'images') {
-                    message = `已选择 ${files.length} 个图片文件`;
+                    // 显示文件夹信息
+                    if (files.length > 0) {
+                        const folderName = files[0].webkitRelativePath.split('/')[0];
+                        message = `已选择文件夹: ${folderName} (包含 ${files.length} 个图片文件)`;
+                    }
                 } else {
                     message = `已选择文件: ${files[0].name}`;
                 }
