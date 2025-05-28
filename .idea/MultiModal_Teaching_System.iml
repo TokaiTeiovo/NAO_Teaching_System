@@ -3,11 +3,18 @@
   <component name="NewModuleRootManager">
     <content url="file://$MODULE_DIR$">
       <excludeFolder url="file://$MODULE_DIR$/ai_models/.venv" />
-      <excludeFolder url="file://$MODULE_DIR$/nao_control/.venv" />
-      <excludeFolder url="file://$MODULE_DIR$/knowledge_extraction/.venv" />
       <excludeFolder url="file://$MODULE_DIR$/ai_server/ai_venv" />
+      <excludeFolder url="file://$MODULE_DIR$/knowledge_extraction/.venv" />
+      <excludeFolder url="file://$MODULE_DIR$/nao_control/.venv" />
     </content>
     <orderEntry type="jdk" jdkName="Python 3.10" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
+  </component>
+  <component name="PyDocumentationSettings">
+    <option name="format" value="PLAIN" />
+    <option name="myDocStringFormat" value="Plain" />
+  </component>
+  <component name="TestRunnerService">
+    <option name="PROJECT_TEST_RUNNER" value="py.test" />
   </component>
 </module>

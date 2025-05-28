@@ -2,11 +2,12 @@
 # -*- coding: utf-8 -*-
 
 """
-多模态智能教学系统 - Web API后端
-提供RESTful API接口，支持前后端分离架构
+多模态智能教学系统 - 分离版后端API服务器
+前后端分离架构，仅提供API接口
 """
 
 import argparse
+import json
 import logging
 import os
 import subprocess
@@ -18,7 +19,7 @@ from pathlib import Path
 
 import colorlog
 import psutil
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 
@@ -30,10 +31,9 @@ sys.path.append(str(PROJECT_ROOT))
 LOG_DIR = PROJECT_ROOT / "logs"
 UPLOAD_DIR = PROJECT_ROOT / "uploads"
 SHARED_DIR = PROJECT_ROOT / "shared"
-STATIC_DIR = PROJECT_ROOT / "static"
 
 # 确保目录存在
-for directory in [LOG_DIR, UPLOAD_DIR, SHARED_DIR, STATIC_DIR]:
+for directory in [LOG_DIR, UPLOAD_DIR, SHARED_DIR]:
     directory.mkdir(parents=True, exist_ok=True)
 
 # 允许的文件扩展名
@@ -160,46 +160,35 @@ class SystemMonitor:
 
 # ==================== Flask应用 ====================
 app = Flask(__name__)
-CORS(app)  # 启用跨域支持
 app.config['SECRET_KEY'] = 'multimodal_teaching_system_2025'
 app.config['UPLOAD_FOLDER'] = str(UPLOAD_DIR)
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max file size
 
+# 启用CORS以支持前后端分离
+CORS(app, origins=["*"])
+
 # 全局变量
 system_monitor = SystemMonitor()
 logger = setup_logger('web_monitor', log_file='web_monitor.log')
+
+# 处理状态存储
 processing_status = {}
 
 
-# ==================== 静态文件服务 ====================
-@app.route('/')
-def serve_index():
-    """提供首页静态文件"""
-    return send_from_directory(STATIC_DIR, 'index.html')
-
-
-@app.route('/chat')
-def serve_chat():
-    """提供聊天页面静态文件"""
-    return send_from_directory(STATIC_DIR, 'chat.html')
-
-
-@app.route('/<path:filename>')
-def serve_static(filename):
-    """提供其他静态文件"""
-    return send_from_directory(STATIC_DIR, filename)
-
-
-# ==================== API 路由 ====================
-@app.route('/api/system_stats')
-def get_system_stats():
-    """获取系统统计信息API"""
-    return jsonify(system_monitor.get_stats())
+# ==================== API路由 ====================
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    """健康检查接口"""
+    return jsonify({
+        'status': 'healthy',
+        'timestamp': time.time(),
+        'version': '2.0.0'
+    })
 
 
 @app.route('/api/process_pdf', methods=['POST'])
 def process_pdf():
-    """处理PDF文件"""
+    """处理PDF文件API"""
     try:
         if 'file' not in request.files:
             return jsonify({'error': 'No file provided'}), 400
@@ -209,7 +198,7 @@ def process_pdf():
             return jsonify({'error': 'No file selected'}), 400
 
         if not allowed_file(file.filename, ALLOWED_PDF_EXTENSIONS):
-            return jsonify({'error': 'Invalid file type'}), 400
+            return jsonify({'error': 'Invalid file type. Only PDF files are allowed.'}), 400
 
         # 保存上传的文件
         filename = secure_filename(file.filename)
@@ -219,9 +208,7 @@ def process_pdf():
         # 获取参数
         domain = request.form.get('domain', '计算机科学')
         batch_size = int(request.form.get('batch_size', 10))
-        max_pages = request.form.get('max_pages')
-        if max_pages:
-            max_pages = int(max_pages)
+        max_pages = int(request.form.get('max_pages', 50))
         import_neo4j = request.form.get('import_neo4j') == 'true'
 
         # Neo4j配置
@@ -248,16 +235,21 @@ def process_pdf():
         thread.daemon = True
         thread.start()
 
-        return jsonify({'process_id': process_id, 'message': 'PDF processing started'})
+        return jsonify({
+            'success': True,
+            'process_id': process_id,
+            'message': 'PDF processing started',
+            'file_name': filename
+        })
 
     except Exception as e:
         logger.error(f"处理PDF时出错: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': f'PDF processing failed: {str(e)}'}), 500
 
 
 @app.route('/api/process_images', methods=['POST'])
 def process_images():
-    """处理图片文件"""
+    """处理图片文件API"""
     try:
         if 'files' not in request.files:
             return jsonify({'error': 'No files provided'}), 400
@@ -281,7 +273,7 @@ def process_images():
                 saved_files.append(str(filepath))
 
         if not saved_files:
-            return jsonify({'error': 'No valid image files'}), 400
+            return jsonify({'error': 'No valid image files found'}), 400
 
         # 获取参数
         domain = request.form.get('domain', '计算机科学')
@@ -310,16 +302,21 @@ def process_images():
         thread.daemon = True
         thread.start()
 
-        return jsonify({'process_id': process_id, 'message': 'Images processing started'})
+        return jsonify({
+            'success': True,
+            'process_id': process_id,
+            'message': 'Images processing started',
+            'files_count': len(saved_files)
+        })
 
     except Exception as e:
         logger.error(f"处理图片时出错: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': f'Images processing failed: {str(e)}'}), 500
 
 
 @app.route('/api/process_json', methods=['POST'])
 def process_json():
-    """处理JSON文件"""
+    """处理JSON文件API"""
     try:
         if 'file' not in request.files:
             return jsonify({'error': 'No file provided'}), 400
@@ -329,7 +326,7 @@ def process_json():
             return jsonify({'error': 'No file selected'}), 400
 
         if not allowed_file(file.filename, ALLOWED_JSON_EXTENSIONS):
-            return jsonify({'error': 'Invalid file type'}), 400
+            return jsonify({'error': 'Invalid file type. Only JSON files are allowed.'}), 400
 
         # 保存上传的文件
         filename = secure_filename(file.filename)
@@ -363,16 +360,21 @@ def process_json():
         thread.daemon = True
         thread.start()
 
-        return jsonify({'process_id': process_id, 'message': 'JSON processing started'})
+        return jsonify({
+            'success': True,
+            'process_id': process_id,
+            'message': 'JSON processing started',
+            'file_name': filename
+        })
 
     except Exception as e:
         logger.error(f"处理JSON时出错: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': f'JSON processing failed: {str(e)}'}), 500
 
 
-@app.route('/api/process_status/<process_id>')
+@app.route('/api/process_status/<process_id>', methods=['GET'])
 def get_process_status(process_id):
-    """获取处理状态"""
+    """获取处理状态API"""
     if process_id in processing_status:
         return jsonify(processing_status[process_id])
     else:
@@ -381,41 +383,107 @@ def get_process_status(process_id):
 
 @app.route('/api/test_neo4j', methods=['POST'])
 def test_neo4j():
-    """测试Neo4j连接"""
+    """测试Neo4j连接API"""
     try:
         data = request.get_json()
         uri = data.get('uri', 'bolt://localhost:7687')
         user = data.get('user', 'neo4j')
         password = data.get('password', 'admin123')
 
+        # 测试Neo4j连接
         try:
             from py2neo import Graph
             graph = Graph(uri, auth=(user, password))
+            # 执行一个简单的查询来测试连接
             graph.run("RETURN 1")
-            return jsonify({'success': True, 'message': 'Neo4j连接成功'})
+            return jsonify({
+                'success': True,
+                'message': 'Neo4j连接测试成功',
+                'uri': uri,
+                'user': user
+            })
         except ImportError:
-            return jsonify({'success': False, 'error': 'py2neo未安装'})
+            return jsonify({
+                'success': False,
+                'error': 'py2neo库未安装，无法连接Neo4j数据库'
+            })
         except Exception as e:
-            return jsonify({'success': False, 'error': str(e)})
+            return jsonify({
+                'success': False,
+                'error': f'Neo4j连接失败: {str(e)}'
+            })
 
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-
-# ==================== 后台处理函数 ====================
-def update_progress(process_id, progress, message):
-    """更新处理进度"""
-    if process_id in processing_status:
-        processing_status[process_id].update({
-            'progress': progress,
-            'message': message
+        return jsonify({
+            'success': False,
+            'error': f'请求处理失败: {str(e)}'
         })
 
 
+@app.route('/api/system_stats', methods=['GET'])
+def get_system_stats():
+    """获取系统统计信息API"""
+    try:
+        stats = system_monitor.get_stats()
+        return jsonify({
+            'success': True,
+            'data': stats,
+            'timestamp': time.time()
+        })
+    except Exception as e:
+        logger.error(f"获取系统统计信息失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to get system stats: {str(e)}'
+        }), 500
+
+
+@app.route('/api/domains', methods=['GET'])
+def get_domains():
+    """获取支持的知识领域列表API"""
+    domains = [
+        "计算机科学", "数学", "物理学", "化学", "生物学",
+        "医学", "心理学", "经济学", "哲学", "语言学"
+    ]
+    return jsonify({
+        'success': True,
+        'data': domains
+    })
+
+
+@app.route('/api/processing_logs/<process_id>', methods=['GET'])
+def get_processing_logs(process_id):
+    """获取处理日志API"""
+    try:
+        # 查找对应的日志文件
+        log_file = LOG_DIR / f"process_{process_id}.log"
+        if log_file.exists():
+            with open(log_file, 'r', encoding='utf-8') as f:
+                logs = f.readlines()
+                return jsonify({
+                    'success': True,
+                    'logs': [line.strip() for line in logs[-100:]]  # 返回最后100行
+                })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Log file not found'
+            })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+
+# ==================== 后台处理函数 ====================
 def process_pdf_background(process_id, filepath, domain, batch_size, max_pages, import_neo4j, neo4j_config):
     """后台处理PDF"""
     try:
-        update_progress(process_id, 10, '文件验证完成')
+        processing_status[process_id].update({
+            'progress': 10,
+            'message': '验证PDF文件...'
+        })
 
         # 构建命令
         cmd = [
@@ -424,11 +492,9 @@ def process_pdf_background(process_id, filepath, domain, batch_size, max_pages, 
             "--pdf", filepath,
             "--domain", domain,
             "--batch-size", str(batch_size),
+            "--max-items", str(max_pages),
             "--output", f"knowledge_graph_{process_id}.json"
         ]
-
-        if max_pages:
-            cmd.extend(["--max-items", str(max_pages)])
 
         if import_neo4j:
             cmd.extend([
@@ -438,22 +504,31 @@ def process_pdf_background(process_id, filepath, domain, batch_size, max_pages, 
                 "--neo4j-password", neo4j_config['password']
             ])
 
-        update_progress(process_id, 20, 'PDF转图像处理中...')
+        processing_status[process_id].update({
+            'progress': 20,
+            'message': 'PDF转图像处理中...'
+        })
 
-        # 执行处理
+        logger.info(f"开始处理PDF: {filepath}")
+        logger.info(f"处理参数: 领域={domain}, 批次={batch_size}, 最大页数={max_pages}")
+
+        # 执行处理命令
         result = subprocess.run(
             cmd,
             timeout=3600,
             stderr=subprocess.PIPE,
-            text=True
+            text=True,
+            cwd=PROJECT_ROOT
         )
 
         if result.returncode == 0:
+            logger.info(f"PDF处理完成: {filepath}")
             processing_status[process_id].update({
                 'status': 'completed',
                 'progress': 100,
-                'message': '处理完成！',
+                'message': '知识图谱生成完成！',
                 'result': {
+                    'output_file': f"knowledge_graph_{process_id}.json",
                     'concepts_count': 'N/A',
                     'relations_count': 'N/A',
                     'neo4j_imported': import_neo4j
@@ -461,12 +536,20 @@ def process_pdf_background(process_id, filepath, domain, batch_size, max_pages, 
             })
         else:
             error_msg = result.stderr if result.stderr else 'Processing failed'
+            logger.error(f"PDF处理失败: {error_msg}")
             processing_status[process_id].update({
                 'status': 'error',
                 'error': error_msg
             })
 
+    except subprocess.TimeoutExpired:
+        logger.error(f"PDF处理超时: {filepath}")
+        processing_status[process_id].update({
+            'status': 'error',
+            'error': 'Processing timeout (60 minutes exceeded)'
+        })
     except Exception as e:
+        logger.error(f"PDF处理异常: {e}")
         processing_status[process_id].update({
             'status': 'error',
             'error': str(e)
@@ -476,7 +559,10 @@ def process_pdf_background(process_id, filepath, domain, batch_size, max_pages, 
 def process_images_background(process_id, images_folder, domain, import_neo4j, neo4j_config):
     """后台处理图片"""
     try:
-        update_progress(process_id, 10, '图片文件验证完成')
+        processing_status[process_id].update({
+            'progress': 15,
+            'message': '验证图片文件...'
+        })
 
         cmd = [
             sys.executable,
@@ -494,21 +580,30 @@ def process_images_background(process_id, images_folder, domain, import_neo4j, n
                 "--neo4j-password", neo4j_config['password']
             ])
 
-        update_progress(process_id, 30, '图片OCR文本提取中...')
+        processing_status[process_id].update({
+            'progress': 30,
+            'message': '图片OCR文本提取中...'
+        })
+
+        logger.info(f"开始处理图片文件夹: {images_folder}")
+        logger.info(f"处理参数: 领域={domain}")
 
         result = subprocess.run(
             cmd,
             timeout=3600,
             stderr=subprocess.PIPE,
-            text=True
+            text=True,
+            cwd=PROJECT_ROOT
         )
 
         if result.returncode == 0:
+            logger.info(f"图片处理完成: {images_folder}")
             processing_status[process_id].update({
                 'status': 'completed',
                 'progress': 100,
-                'message': '处理完成！',
+                'message': '知识图谱生成完成！',
                 'result': {
+                    'output_file': f"knowledge_graph_{process_id}.json",
                     'concepts_count': 'N/A',
                     'relations_count': 'N/A',
                     'neo4j_imported': import_neo4j
@@ -516,12 +611,20 @@ def process_images_background(process_id, images_folder, domain, import_neo4j, n
             })
         else:
             error_msg = result.stderr if result.stderr else 'Processing failed'
+            logger.error(f"图片处理失败: {error_msg}")
             processing_status[process_id].update({
                 'status': 'error',
                 'error': error_msg
             })
 
+    except subprocess.TimeoutExpired:
+        logger.error(f"图片处理超时: {images_folder}")
+        processing_status[process_id].update({
+            'status': 'error',
+            'error': 'Processing timeout (60 minutes exceeded)'
+        })
     except Exception as e:
+        logger.error(f"图片处理异常: {e}")
         processing_status[process_id].update({
             'status': 'error',
             'error': str(e)
@@ -531,7 +634,10 @@ def process_images_background(process_id, images_folder, domain, import_neo4j, n
 def process_json_background(process_id, filepath, domain, import_neo4j, neo4j_config):
     """后台处理JSON"""
     try:
-        update_progress(process_id, 15, 'JSON文件验证完成')
+        processing_status[process_id].update({
+            'progress': 20,
+            'message': '验证JSON文件...'
+        })
 
         cmd = [
             sys.executable,
@@ -549,21 +655,30 @@ def process_json_background(process_id, filepath, domain, import_neo4j, neo4j_co
                 "--neo4j-password", neo4j_config['password']
             ])
 
-        update_progress(process_id, 40, 'LLM知识提取中...')
+        processing_status[process_id].update({
+            'progress': 40,
+            'message': 'LLM知识提取中...'
+        })
+
+        logger.info(f"开始处理JSON文件: {filepath}")
+        logger.info(f"处理参数: 领域={domain}")
 
         result = subprocess.run(
             cmd,
             timeout=1800,
             stderr=subprocess.PIPE,
-            text=True
+            text=True,
+            cwd=PROJECT_ROOT
         )
 
         if result.returncode == 0:
+            logger.info(f"JSON处理完成: {filepath}")
             processing_status[process_id].update({
                 'status': 'completed',
                 'progress': 100,
-                'message': '处理完成！',
+                'message': '知识图谱生成完成！',
                 'result': {
+                    'output_file': f"knowledge_graph_{process_id}.json",
                     'concepts_count': 'N/A',
                     'relations_count': 'N/A',
                     'neo4j_imported': import_neo4j
@@ -571,12 +686,20 @@ def process_json_background(process_id, filepath, domain, import_neo4j, neo4j_co
             })
         else:
             error_msg = result.stderr if result.stderr else 'Processing failed'
+            logger.error(f"JSON处理失败: {error_msg}")
             processing_status[process_id].update({
                 'status': 'error',
                 'error': error_msg
             })
 
+    except subprocess.TimeoutExpired:
+        logger.error(f"JSON处理超时: {filepath}")
+        processing_status[process_id].update({
+            'status': 'error',
+            'error': 'Processing timeout (30 minutes exceeded)'
+        })
     except Exception as e:
+        logger.error(f"JSON处理异常: {e}")
         processing_status[process_id].update({
             'status': 'error',
             'error': str(e)
@@ -585,29 +708,34 @@ def process_json_background(process_id, filepath, domain, import_neo4j, neo4j_co
 
 def main():
     """主函数"""
-    parser = argparse.ArgumentParser(description="多模态智能教学系统 - Web API后端")
+    parser = argparse.ArgumentParser(description="多模态智能教学系统 - 分离版后端API服务器")
     parser.add_argument("--host", type=str, default="127.0.0.1", help="API服务器主机地址")
     parser.add_argument("--port", type=int, default=5000, help="API服务器端口号")
     parser.add_argument("--debug", action="store_true", help="启用调试模式")
 
     args = parser.parse_args()
 
-    logger.info(f"启动Web API后端: {args.host}:{args.port}")
+    logger.info(f"启动分离版后端API服务器: {args.host}:{args.port}")
 
     # 启动系统监控
     system_monitor.start_monitoring()
 
     try:
         logger.info("正在启动Flask API服务器...")
-        print(f"\n🌐 多模态智能教学系统 - Web API后端")
-        print(f"📍 API服务器: http://{args.host}:{args.port}")
-        print(f"📍 静态文件: {STATIC_DIR}")
+        print(f"\n🔧 多模态智能教学系统 - 后端API服务器")
+        print(f"📍 API地址: http://{args.host}:{args.port}")
+        print(f"📋 API文档:")
+        print(f"   • GET  /api/health - 健康检查")
+        print(f"   • POST /api/process_pdf - 处理PDF文件")
+        print(f"   • POST /api/process_images - 处理图片文件")
+        print(f"   • POST /api/process_json - 处理JSON文件")
+        print(f"   • GET  /api/process_status/<id> - 获取处理状态")
+        print(f"   • POST /api/test_neo4j - 测试Neo4j连接")
+        print(f"   • GET  /api/system_stats - 获取系统状态")
+        print(f"   • GET  /api/domains - 获取支持的知识领域")
         print(f"🔧 系统监控已启动")
-        print(f"💡 使用说明:")
-        print(f"   1. 将前端文件放置在 {STATIC_DIR} 目录")
-        print(f"   2. 访问 http://{args.host}:{args.port} 查看应用")
-        print(f"   3. API接口前缀: /api/")
-        print(f"   4. 按 Ctrl+C 退出\n")
+        print(f"💡 CORS已启用，支持跨域访问")
+        print(f"🔧 按 Ctrl+C 退出\n")
 
         app.run(
             host=args.host,
@@ -622,7 +750,7 @@ def main():
     except Exception as e:
         logger.error(f"启动API服务器时出错: {e}")
     finally:
-        logger.info("Web API后端已关闭")
+        logger.info("后端API服务器已关闭")
 
 
 if __name__ == "__main__":

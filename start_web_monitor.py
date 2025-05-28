@@ -81,7 +81,7 @@ def open_browser(host, port, delay=3):
             webbrowser.open(url)
             print(f"🌐 已打开浏览器: {url}")
         except Exception as e:
-            print(f"⚠️  无法自动打开浏览器: {e}")
+            print(f"⚠️ 无法自动打开浏览器: {e}")
             print(f"   请手动访问: {url}")
 
     import threading
