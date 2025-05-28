@@ -169,6 +169,7 @@ app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max file size
 system_monitor = SystemMonitor()
 logger = setup_logger('web_monitor', log_file='web_monitor.log')
 processing_status = {}
+processing_processes = {}  # 存储正在运行的进程
 
 
 # ==================== 静态文件服务 ====================
@@ -379,6 +380,45 @@ def get_process_status(process_id):
         return jsonify({'error': 'Process not found'}), 404
 
 
+@app.route('/api/stop_process/<process_id>', methods=['POST'])
+def stop_process(process_id):
+    """停止处理任务"""
+    try:
+        if process_id not in processing_status:
+            return jsonify({'error': 'Process not found'}), 404
+
+        # 更新状态为已停止
+        processing_status[process_id].update({
+            'status': 'stopped',
+            'message': '用户手动停止处理'
+        })
+
+        # 如果有正在运行的进程，终止它
+        if process_id in processing_processes:
+            process = processing_processes[process_id]
+            try:
+                if process.poll() is None:  # 进程还在运行
+                    process.terminate()
+                    logger.info(f"已终止处理进程: {process_id} (PID: {process.pid})")
+
+                    # 等待进程终止，如果超时则强制杀死
+                    try:
+                        process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        logger.warning(f"强制杀死进程: {process_id} (PID: {process.pid})")
+
+                del processing_processes[process_id]
+            except Exception as e:
+                logger.error(f"终止进程时出错: {e}")
+
+        logger.info(f"处理任务已停止: {process_id}")
+        return jsonify({'success': True, 'message': '处理任务已停止'})
+
+    except Exception as e:
+        logger.error(f"停止处理任务时出错: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/test_neo4j', methods=['POST'])
 def test_neo4j():
     """测试Neo4j连接"""
@@ -417,6 +457,10 @@ def process_pdf_background(process_id, filepath, domain, batch_size, max_pages, 
     try:
         update_progress(process_id, 10, '文件验证完成')
 
+        # 检查是否被停止
+        if processing_status.get(process_id, {}).get('status') == 'stopped':
+            return
+
         # 构建命令
         cmd = [
             sys.executable,
@@ -440,43 +484,74 @@ def process_pdf_background(process_id, filepath, domain, batch_size, max_pages, 
 
         update_progress(process_id, 20, 'PDF转图像处理中...')
 
+        # 检查是否被停止
+        if processing_status.get(process_id, {}).get('status') == 'stopped':
+            return
+
         # 执行处理
-        result = subprocess.run(
+        process = subprocess.Popen(
             cmd,
-            timeout=3600,
             stderr=subprocess.PIPE,
             text=True
         )
 
-        if result.returncode == 0:
-            processing_status[process_id].update({
-                'status': 'completed',
-                'progress': 100,
-                'message': '处理完成！',
-                'result': {
-                    'concepts_count': 'N/A',
-                    'relations_count': 'N/A',
-                    'neo4j_imported': import_neo4j
-                }
-            })
-        else:
-            error_msg = result.stderr if result.stderr else 'Processing failed'
+        # 存储进程引用
+        processing_processes[process_id] = process
+
+        # 等待进程完成
+        try:
+            stdout, stderr = process.communicate(timeout=3600)
+
+            # 检查是否被手动停止
+            if processing_status.get(process_id, {}).get('status') == 'stopped':
+                return
+
+            if process.returncode == 0:
+                processing_status[process_id].update({
+                    'status': 'completed',
+                    'progress': 100,
+                    'message': '处理完成！',
+                    'result': {
+                        'concepts_count': 'N/A',
+                        'relations_count': 'N/A',
+                        'neo4j_imported': import_neo4j
+                    }
+                })
+            else:
+                error_msg = stderr if stderr else 'Processing failed'
+                processing_status[process_id].update({
+                    'status': 'error',
+                    'error': error_msg
+                })
+        except subprocess.TimeoutExpired:
+            process.kill()
             processing_status[process_id].update({
                 'status': 'error',
-                'error': error_msg
+                'error': '处理超时'
             })
+        finally:
+            # 清理进程引用
+            if process_id in processing_processes:
+                del processing_processes[process_id]
 
     except Exception as e:
         processing_status[process_id].update({
             'status': 'error',
             'error': str(e)
         })
+        # 清理进程引用
+        if process_id in processing_processes:
+            del processing_processes[process_id]
 
 
 def process_images_background(process_id, images_folder, domain, import_neo4j, neo4j_config):
     """后台处理图片"""
     try:
         update_progress(process_id, 10, '图片文件验证完成')
+
+        # 检查是否被停止
+        if processing_status.get(process_id, {}).get('status') == 'stopped':
+            return
 
         cmd = [
             sys.executable,
@@ -496,42 +571,74 @@ def process_images_background(process_id, images_folder, domain, import_neo4j, n
 
         update_progress(process_id, 30, '图片OCR文本提取中...')
 
-        result = subprocess.run(
+        # 检查是否被停止
+        if processing_status.get(process_id, {}).get('status') == 'stopped':
+            return
+
+        # 执行处理
+        process = subprocess.Popen(
             cmd,
-            timeout=3600,
             stderr=subprocess.PIPE,
             text=True
         )
 
-        if result.returncode == 0:
-            processing_status[process_id].update({
-                'status': 'completed',
-                'progress': 100,
-                'message': '处理完成！',
-                'result': {
-                    'concepts_count': 'N/A',
-                    'relations_count': 'N/A',
-                    'neo4j_imported': import_neo4j
-                }
-            })
-        else:
-            error_msg = result.stderr if result.stderr else 'Processing failed'
+        # 存储进程引用
+        processing_processes[process_id] = process
+
+        # 等待进程完成
+        try:
+            stdout, stderr = process.communicate(timeout=3600)
+
+            # 检查是否被手动停止
+            if processing_status.get(process_id, {}).get('status') == 'stopped':
+                return
+
+            if process.returncode == 0:
+                processing_status[process_id].update({
+                    'status': 'completed',
+                    'progress': 100,
+                    'message': '处理完成！',
+                    'result': {
+                        'concepts_count': 'N/A',
+                        'relations_count': 'N/A',
+                        'neo4j_imported': import_neo4j
+                    }
+                })
+            else:
+                error_msg = stderr if stderr else 'Processing failed'
+                processing_status[process_id].update({
+                    'status': 'error',
+                    'error': error_msg
+                })
+        except subprocess.TimeoutExpired:
+            process.kill()
             processing_status[process_id].update({
                 'status': 'error',
-                'error': error_msg
+                'error': '处理超时'
             })
+        finally:
+            # 清理进程引用
+            if process_id in processing_processes:
+                del processing_processes[process_id]
 
     except Exception as e:
         processing_status[process_id].update({
             'status': 'error',
             'error': str(e)
         })
+        # 清理进程引用
+        if process_id in processing_processes:
+            del processing_processes[process_id]
 
 
 def process_json_background(process_id, filepath, domain, import_neo4j, neo4j_config):
     """后台处理JSON"""
     try:
         update_progress(process_id, 15, 'JSON文件验证完成')
+
+        # 检查是否被停止
+        if processing_status.get(process_id, {}).get('status') == 'stopped':
+            return
 
         cmd = [
             sys.executable,
@@ -551,36 +658,64 @@ def process_json_background(process_id, filepath, domain, import_neo4j, neo4j_co
 
         update_progress(process_id, 40, 'LLM知识提取中...')
 
-        result = subprocess.run(
+        # 检查是否被停止
+        if processing_status.get(process_id, {}).get('status') == 'stopped':
+            return
+
+        # 执行处理
+        process = subprocess.Popen(
             cmd,
-            timeout=1800,
             stderr=subprocess.PIPE,
             text=True
         )
 
-        if result.returncode == 0:
-            processing_status[process_id].update({
-                'status': 'completed',
-                'progress': 100,
-                'message': '处理完成！',
-                'result': {
-                    'concepts_count': 'N/A',
-                    'relations_count': 'N/A',
-                    'neo4j_imported': import_neo4j
-                }
-            })
-        else:
-            error_msg = result.stderr if result.stderr else 'Processing failed'
+        # 存储进程引用
+        processing_processes[process_id] = process
+
+        # 等待进程完成
+        try:
+            stdout, stderr = process.communicate(timeout=1800)
+
+            # 检查是否被手动停止
+            if processing_status.get(process_id, {}).get('status') == 'stopped':
+                return
+
+            if process.returncode == 0:
+                processing_status[process_id].update({
+                    'status': 'completed',
+                    'progress': 100,
+                    'message': '处理完成！',
+                    'result': {
+                        'concepts_count': 'N/A',
+                        'relations_count': 'N/A',
+                        'neo4j_imported': import_neo4j
+                    }
+                })
+            else:
+                error_msg = stderr if stderr else 'Processing failed'
+                processing_status[process_id].update({
+                    'status': 'error',
+                    'error': error_msg
+                })
+        except subprocess.TimeoutExpired:
+            process.kill()
             processing_status[process_id].update({
                 'status': 'error',
-                'error': error_msg
+                'error': '处理超时'
             })
+        finally:
+            # 清理进程引用
+            if process_id in processing_processes:
+                del processing_processes[process_id]
 
     except Exception as e:
         processing_status[process_id].update({
             'status': 'error',
             'error': str(e)
         })
+        # 清理进程引用
+        if process_id in processing_processes:
+            del processing_processes[process_id]
 
 
 def main():

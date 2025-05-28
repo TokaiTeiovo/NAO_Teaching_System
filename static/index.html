@@ -221,6 +221,16 @@
             color: #4a5568;
         }
 
+        .btn-danger {
+            background: linear-gradient(135deg, #e53e3e, #c53030);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(229, 62, 62, 0.4);
+        }
+
         .progress-container {
             margin: 20px 0;
             display: none;
@@ -499,19 +509,34 @@
                             <small style="color: #718096;">为避免超时，建议限制处理页数</small>
                         </div>
 
-                        <button type="button" class="btn btn-primary" onclick="processPDF()">🚀 生成知识图谱</button>
+                        <button type="button" class="btn btn-primary" id="pdf-process-btn" onclick="processPDF()">🚀 生成知识图谱</button>
                     </form>
                 </div>
 
-                <!-- 图片文件夹上传 -->
+                <!-- 图片文件夹上传 - 只传输路径版本 -->
                 <div id="images-tab" class="tab-content">
-                    <form id="images-form" method="POST" enctype="multipart/form-data">
+                    <form id="images-form">
                         <div class="upload-area" onclick="document.getElementById('images-folder').click()">
                             <div class="upload-icon">🖼️</div>
                             <div class="upload-text">选择图片文件夹</div>
-                            <div class="upload-hint">支持格式: PNG, JPG, JPEG, GIF, BMP, TIFF</div>
+                            <div class="upload-hint">
+                                支持格式: PNG, JPG, JPEG, GIF, BMP, TIFF<br>
+                                <strong style="color: #48bb78;">✨ 只传输文件夹路径，不上传文件</strong><br>
+                                <small style="color: #718096;">系统将读取服务器上的文件夹路径进行处理</small>
+                            </div>
                         </div>
-                        <input type="file" id="images-folder" name="files" class="file-input" webkitdirectory directory accept="image/*" onchange="handleFileSelect(this, 'images')">
+
+                        <!-- 隐藏的文件夹选择器 -->
+                        <input type="file" id="images-folder" name="files" class="file-input"
+                               webkitdirectory directory accept="image/*"
+                               onchange="handleFolderSelection(this)">
+
+                        <!-- 显示选择的文件夹信息 -->
+                        <div id="folder-info" style="display: none; margin: 20px 0; padding: 15px; background: #f8fafc; border-radius: 8px; border-left: 4px solid #48bb78;">
+                            <h4 style="color: #48bb78; margin-bottom: 10px;">📁 已选择文件夹</h4>
+                            <div id="folder-details"></div>
+                        </div>
+
                         <div class="form-group">
                             <label for="images-domain">知识领域</label>
                             <select id="images-domain" name="domain" class="form-control">
@@ -528,7 +553,21 @@
                             </select>
                         </div>
 
-                        <button type="button" class="btn btn-primary" onclick="processImages()">🚀 生成知识图谱</button>
+                        <div class="form-group">
+                            <label for="images-batch-size">批次大小</label>
+                            <input type="number" id="images-batch-size" name="batch_size" class="form-control" value="10" min="1" max="50">
+                            <small style="color: #718096;">每批处理的图片数量，建议5-15张</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="images-max-count">最大处理数量</label>
+                            <input type="number" id="images-max-count" name="max_count" class="form-control" value="100" min="1" max="500">
+                            <small style="color: #718096;">限制处理的最大图片数量，避免处理时间过长</small>
+                        </div>
+
+                        <button type="button" class="btn btn-primary" onclick="processFolderPath()" id="process-folder-btn" disabled>
+                            🚀 生成知识图谱
+                        </button>
                     </form>
                 </div>
 
@@ -558,7 +597,7 @@
                             </select>
                         </div>
 
-                        <button type="button" class="btn btn-primary" onclick="processJSON()">🚀 生成知识图谱</button>
+                        <button type="button" class="btn btn-primary" id="json-process-btn" onclick="processJSON()">🚀 生成知识图谱</button>
                     </form>
                 </div>
 
@@ -631,6 +670,7 @@
         let currentProcessId = null;
         let currentFlow = [];
         let currentFileType = '';
+        let selectedFolderInfo = null;
 
         // 步骤配置 - 根据不同文件类型定义不同流程
         const PROCESSING_FLOWS = {
@@ -659,6 +699,7 @@
                 { id: 5, name: '数据库导入', description: '导入到Neo4j图数据库' }
             ]
         };
+
 
         // 动态生成步骤进度条
         function generateStepsHTML(flowType) {
@@ -923,6 +964,9 @@
             // 初始化步骤进度条
             initializeSteps('pdf');
 
+            // 更新按钮状态
+            updateButtonState('pdf-process-btn', true);
+
             const formData = new FormData();
             formData.append('file', file);
             formData.append('domain', document.getElementById('pdf-domain').value);
@@ -957,10 +1001,14 @@
                     const error = await response.json();
                     showStepError(1, error.message);
                     addLog(`错误: ${error.message}`);
+                    // 恢复按钮状态
+                    updateButtonState('pdf-process-btn', false);
                 }
             } catch (error) {
                 showStepError(1, error.message);
                 addLog(`网络错误: ${error.message}`);
+                // 恢复按钮状态
+                updateButtonState('pdf-process-btn', false);
             }
         }
 
@@ -976,6 +1024,9 @@
 
             // 初始化步骤进度条
             initializeSteps('images');
+
+            // 更新按钮状态
+            updateButtonState('images-process-btn', true);
 
             const formData = new FormData();
             for (let file of files) {
@@ -1005,10 +1056,14 @@
                     const error = await response.json();
                     showStepError(1, error.message);
                     addLog(`错误: ${error.message}`);
+                    // 恢复按钮状态
+                    updateButtonState('images-process-btn', false);
                 }
             } catch (error) {
                 showStepError(1, error.message);
                 addLog(`网络错误: ${error.message}`);
+                // 恢复按钮状态
+                updateButtonState('images-process-btn', false);
             }
         }
 
@@ -1024,6 +1079,9 @@
 
             // 初始化步骤进度条
             initializeSteps('json');
+
+            // 更新按钮状态
+            updateButtonState('json-process-btn', true);
 
             const formData = new FormData();
             formData.append('file', file);
@@ -1051,10 +1109,14 @@
                     const error = await response.json();
                     showStepError(1, error.message);
                     addLog(`错误: ${error.message}`);
+                    // 恢复按钮状态
+                    updateButtonState('json-process-btn', false);
                 }
             } catch (error) {
                 showStepError(1, error.message);
                 addLog(`网络错误: ${error.message}`);
+                // 恢复按钮状态
+                updateButtonState('json-process-btn', false);
             }
         }
 
@@ -1081,12 +1143,33 @@
                     }
                     currentProcessId = null;
 
+                    // 恢复所有按钮状态
+                    updateButtonState('pdf-process-btn', false);
+                    updateButtonState('images-process-btn', false);
+                    updateButtonState('json-process-btn', false);
+
+                } else if (status.status === 'stopped') {
+                    // 处理已被停止
+                    showStatus('处理已被停止', 'info');
+                    addLog('处理任务已被后端停止');
+                    currentProcessId = null;
+
+                    // 恢复所有按钮状态
+                    updateButtonState('pdf-process-btn', false);
+                    updateButtonState('images-process-btn', false);
+                    updateButtonState('json-process-btn', false);
+
                 } else if (status.status === 'error') {
                     // 根据当前文件类型和错误信息确定错误步骤
                     const currentStep = getCurrentStepFromError(status.error);
                     showStepError(currentStep, status.error);
                     addLog(`处理失败: ${status.error}`);
                     currentProcessId = null;
+
+                    // 恢复所有按钮状态
+                    updateButtonState('pdf-process-btn', false);
+                    updateButtonState('images-process-btn', false);
+                    updateButtonState('json-process-btn', false);
                 }
             } catch (error) {
                 addLog(`状态检查失败: ${error.message}`);
@@ -1181,6 +1264,67 @@
                 }
             } catch (error) {
                 console.error('更新系统状态失败:', error);
+            }
+        }
+
+        // 更新按钮状态
+        function updateButtonState(buttonId, isProcessing) {
+            const button = document.getElementById(buttonId);
+            if (!button) return;
+
+            if (isProcessing) {
+                button.textContent = '⏹️ 停止处理';
+                button.className = 'btn btn-danger';
+                button.onclick = stopProcessing;
+            } else {
+                button.textContent = '🚀 生成知识图谱';
+                button.className = 'btn btn-primary';
+                // 恢复原始点击事件
+                if (buttonId === 'pdf-process-btn') {
+                    button.onclick = processPDF;
+                } else if (buttonId === 'images-process-btn') {
+                    button.onclick = processImages;
+                } else if (buttonId === 'json-process-btn') {
+                    button.onclick = processJSON;
+                }
+            }
+        }
+
+        // 停止处理
+        async function stopProcessing() {
+            if (currentProcessId) {
+                try {
+                    // 调用后端API停止处理
+                    const response = await fetch(`${API_BASE_URL}/stop_process/${currentProcessId}`, {
+                        method: 'POST'
+                    });
+
+                    if (response.ok) {
+                        const result = await response.json();
+                        addLog('后端处理已停止: ' + result.message);
+                    } else {
+                        const error = await response.json();
+                        addLog('停止处理失败: ' + error.error);
+                    }
+                } catch (error) {
+                    addLog('停止处理请求失败: ' + error.message);
+                }
+
+                // 无论API调用是否成功，都执行前端清理
+                currentProcessId = null;
+
+                // 重置所有按钮状态
+                updateButtonState('pdf-process-btn', false);
+                updateButtonState('images-process-btn', false);
+                updateButtonState('json-process-btn', false);
+
+                // 隐藏进度容器
+                const progressContainer = document.getElementById('progress-container');
+                progressContainer.classList.remove('show');
+
+                // 显示停止消息
+                showStatus('处理已停止', 'info');
+                addLog('用户手动停止处理');
             }
         }
 
