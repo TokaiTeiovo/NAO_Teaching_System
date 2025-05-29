@@ -560,8 +560,7 @@
                             <small style="color: #718096; margin-top: 5px; display: block;">
                                 支持格式: PNG, JPG, JPEG, GIF, BMP, TIFF<br>
                                 路径示例:
-                                <code style="background: #f1f5f9; padding: 2px 4px; border-radius: 3px;">D:\documents\pic_20250126_143022</code> 或
-                                <code style="background: #f1f5f9; padding: 2px 4px; border-radius: 3px;">/home/user/images</code>
+                                <code style="background: #f1f5f9; padding: 2px 4px; border-radius: 3px;">D:\documents\pic_20250126_143022</code>
                             </small>
                         </div>
                         <input type="file" id="images-folder" name="files" class="file-input" webkitdirectory directory accept="image/*" onchange="handleFileSelect(this, 'images')">
@@ -1126,8 +1125,8 @@
 
         // 处理图片
         async function processImages() {
-            const fileInput = document.getElementById('images-folder');
-            const files = fileInput.files;
+            const pathInput = document.getElementById('images-path');
+            const folderPath = pathInput.value.trim();
 
             // 检查路径输入而不是文件选择
             if (!folderPath) {

@@ -26,6 +26,18 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 
 PYMUPDF_AVAILABLE = False
 
+import os
+
+# 设置环境变量解决编码问题
+os.environ['PYTHONIOENCODING'] = 'utf-8'
+if sys.platform.startswith('win'):
+    # Windows下设置控制台代码页为UTF-8
+    try:
+        import subprocess
+        subprocess.run(['chcp', '65001'], shell=True, capture_output=True)
+    except:
+        pass
+
 try:
     from py2neo import Graph
 
@@ -84,7 +96,7 @@ def setup_logger(name, log_level="INFO", log_file=None):
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(color_formatter)
 
-    # 在Windows下设置控制台编码
+    # 在Windows下设置控制台编码 - 关键修改
     try:
         if sys.platform.startswith('win'):
             import codecs
@@ -93,7 +105,7 @@ def setup_logger(name, log_level="INFO", log_file=None):
             console_handler.stream = io.TextIOWrapper(
                 console_handler.stream.buffer,
                 encoding='utf-8',
-                errors='replace'
+                errors='replace'  # 替换无法编码的字符
             )
     except Exception as e:
         # 如果设置失败，继续使用默认设置，但避免emoji输出
@@ -102,7 +114,13 @@ def setup_logger(name, log_level="INFO", log_file=None):
     logger.addHandler(console_handler)
 
     if log_file:
-        file_handler = RotatingFileHandler(log_file, maxBytes=10 * 1024 * 1024, backupCount=5, encoding='utf-8')
+        # 文件处理器也设置UTF-8编码
+        file_handler = RotatingFileHandler(
+            log_file,
+            maxBytes=10 * 1024 * 1024,
+            backupCount=5,
+            encoding='utf-8'  # 明确指定UTF-8编码
+        )
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
 
@@ -149,23 +167,54 @@ class ImageFolderOCRExtractor:
             logger.error(f"图片文件夹不存在: {self.image_folder}")
             return image_files
 
-        # 遍历支持的图片格式
-        for ext in self.supported_formats:
-            # 支持递归搜索子文件夹
-            pattern = f"**/*{ext}"
-            files = list(self.image_folder.glob(pattern))
-            image_files.extend(files)
+        try:
+            # 遍历支持的图片格式
+            for ext in self.supported_formats:
+                # 支持递归搜索子文件夹
+                pattern = f"**/*{ext}"
+                try:
+                    files = list(self.image_folder.glob(pattern))
+                    image_files.extend(files)
+                except Exception as e:
+                    logger.warning(f"搜索 {ext} 格式文件时出错: {e}")
+                    continue
 
-            # 也搜索大写扩展名
-            pattern_upper = f"**/*{ext.upper()}"
-            files_upper = list(self.image_folder.glob(pattern_upper))
-            image_files.extend(files_upper)
+                # 也搜索大写扩展名
+                pattern_upper = f"**/*{ext.upper()}"
+                try:
+                    files_upper = list(self.image_folder.glob(pattern_upper))
+                    image_files.extend(files_upper)
+                except Exception as e:
+                    logger.warning(f"搜索 {ext.upper()} 格式文件时出错: {e}")
+                    continue
 
-        # 去重并排序
-        image_files = list(set(image_files))
-        image_files.sort(key=lambda x: self._natural_sort_key(x.name))
+            # 去重并排序 - 安全处理文件名编码
+            image_files = list(set(image_files))
 
-        return image_files
+            # 安全排序，避免编码问题
+            try:
+                image_files.sort(key=lambda x: self._safe_sort_key(x.name))
+            except Exception as e:
+                logger.warning(f"文件排序时出现编码问题: {e}")
+                # 如果排序失败，至少保持文件列表
+                pass
+
+            return image_files
+
+        except Exception as e:
+            logger.error(f"获取图片文件列表时出错: {e}")
+            return []
+
+    def _safe_sort_key(self, filename):
+        """安全的排序key函数，处理编码问题"""
+        try:
+            return self._natural_sort_key(filename)
+        except Exception:
+            # 如果出现编码问题，使用简单的字符串排序
+            try:
+                return filename.encode('utf-8', errors='ignore').decode('utf-8')
+            except:
+                return str(hash(filename))  # 最后的备选方案
 
     def _natural_sort_key(self, filename):
         """自然排序的key函数，支持数字排序"""

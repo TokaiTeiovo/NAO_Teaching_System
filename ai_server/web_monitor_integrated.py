@@ -498,6 +498,7 @@ def process_images_folder():
         domain = data.get('domain', '计算机科学')
         batch_size = data.get('batch_size', 10)
         max_count = data.get('max_count')
+        use_gpu = data.get('use_gpu', True)
         import_neo4j = data.get('import_neo4j', True)
         neo4j_config = data.get('neo4j_config', {
             'uri': 'bolt://localhost:7687',
@@ -547,7 +548,7 @@ def process_images_folder():
         return jsonify({'error': str(e)}), 500
 
 
-def process_images_folder_background(process_id, folder_path, domain, batch_size, max_count, import_neo4j,
+def process_images_folder_background(process_id, folder_path, domain, batch_size, use_gpu, max_count, import_neo4j,
                                      neo4j_config):
     """后台处理图片文件夹"""
     try:
@@ -584,12 +585,23 @@ def process_images_folder_background(process_id, folder_path, domain, batch_size
         if processing_status.get(process_id, {}).get('status') == 'stopped':
             return
 
+        import os
+        env = os.environ.copy()
+        env['PYTHONIOENCODING'] = 'utf-8'  # 强制使用UTF-8编码
+
+        if use_gpu:
+            env['CUDA_VISIBLE_DEVICES'] = '0'  # 使用第一个GPU
+            update_progress(process_id, 35, '启用GPU加速模式...')
+
         # 执行处理
         process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True
+            text=True,
+            encoding='utf-8',  # 明确指定UTF-8编码
+            errors='ignore',   # 忽略编码错误
+            env=env           # 传递环境变量
         )
 
         # 存储进程引用
@@ -630,6 +642,12 @@ def process_images_folder_background(process_id, folder_path, domain, batch_size
                 })
             else:
                 error_msg = stderr if stderr else 'Processing failed'
+                try:
+                    if isinstance(error_msg, bytes):
+                        error_msg = error_msg.decode('utf-8', errors='ignore')
+                except:
+                    error_msg = 'Processing failed with encoding error'
+
                 processing_status[process_id].update({
                     'status': 'error',
                     'error': error_msg[:500]  # 限制错误消息长度
@@ -646,9 +664,17 @@ def process_images_folder_background(process_id, folder_path, domain, batch_size
                 del processing_processes[process_id]
 
     except Exception as e:
+        error_msg = str(e)
+        # 处理异常中的编码问题
+        try:
+            if isinstance(e, UnicodeDecodeError):
+                error_msg = '文件路径或文件名包含不支持的字符，请使用英文路径'
+        except:
+            error_msg = '处理过程中出现未知错误'
+
         processing_status[process_id].update({
             'status': 'error',
-            'error': str(e)[:500]
+            'error': error_msg[:500]
         })
         # 清理进程引用
         if process_id in processing_processes:
