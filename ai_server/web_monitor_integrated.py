@@ -258,33 +258,32 @@ def process_pdf():
 
 @app.route('/api/process_images', methods=['POST'])
 def process_images():
-    """处理图片文件"""
+    """处理图片文件夹（通过路径）"""
     try:
-        if 'files' not in request.files:
-            return jsonify({'error': 'No files provided'}), 400
+        folder_path = request.form.get('folder_path')
 
-        files = request.files.getlist('files')
-        if not files or all(f.filename == '' for f in files):
-            return jsonify({'error': 'No files selected'}), 400
+        if not folder_path:
+            return jsonify({'error': 'No folder path provided'}), 400
 
-        # 创建临时图片文件夹
-        timestamp = int(time.time())
-        images_folder = UPLOAD_DIR / f"images_{timestamp}"
-        images_folder.mkdir(exist_ok=True)
+        # 验证路径存在且是目录
+        images_folder = Path(folder_path)
+        if not images_folder.exists():
+            return jsonify({'error': f'Folder does not exist: {folder_path}'}), 400
 
-        # 保存所有图片文件
-        saved_files = []
-        for file in files:
-            if file and allowed_file(file.filename, ALLOWED_IMAGE_EXTENSIONS):
-                filename = secure_filename(file.filename)
-                filepath = images_folder / filename
-                file.save(str(filepath))
-                saved_files.append(str(filepath))
+        if not images_folder.is_dir():
+            return jsonify({'error': f'Path is not a directory: {folder_path}'}), 400
 
-        if not saved_files:
-            return jsonify({'error': 'No valid image files'}), 400
+        # 检查是否包含图片文件
+        image_extensions = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.webp'}
+        image_files = []
+        for ext in image_extensions:
+            image_files.extend(images_folder.glob(f'**/*{ext}'))
+            image_files.extend(images_folder.glob(f'**/*{ext.upper()}'))
 
-        # 获取参数
+        if not image_files:
+            return jsonify({'error': 'No image files found in the specified folder'}), 400
+
+        # 获取其他参数
         domain = request.form.get('domain', '计算机科学')
         import_neo4j = request.form.get('import_neo4j') == 'true'
 
@@ -295,15 +294,15 @@ def process_images():
         }
 
         # 生成处理ID
-        process_id = f"images_{timestamp}"
+        process_id = f"images_{int(time.time())}"
         processing_status[process_id] = {
             'status': 'processing',
             'progress': 0,
-            'message': f'开始处理 {len(saved_files)} 个图片文件...',
+            'message': f'开始处理文件夹: {folder_path} (找到 {len(image_files)} 个图片文件)',
             'file_type': 'images'
         }
 
-        # 启动后台处理
+        # 启动后台处理，传递文件夹路径
         thread = threading.Thread(
             target=process_images_background,
             args=(process_id, str(images_folder), domain, import_neo4j, neo4j_config)
@@ -311,10 +310,14 @@ def process_images():
         thread.daemon = True
         thread.start()
 
-        return jsonify({'process_id': process_id, 'message': 'Images processing started'})
+        return jsonify({
+            'process_id': process_id,
+            'message': f'Images processing started for folder: {folder_path}',
+            'image_count': len(image_files)
+        })
 
     except Exception as e:
-        logger.error(f"处理图片时出错: {e}")
+        logger.error(f"处理图片文件夹时出错: {e}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -484,6 +487,20 @@ def process_pdf_background(process_id, filepath, domain, batch_size, max_pages, 
 
         update_progress(process_id, 20, 'PDF转图像处理中...')
 
+        env = os.environ.copy()
+        env['PYTHONIOENCODING'] = 'utf-8'
+
+        result = subprocess.run(
+            cmd,
+            timeout=3600,
+            stderr=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            text=True,
+            encoding='utf-8',
+            errors='replace',
+            env=env
+        )
+
         # 检查是否被停止
         if processing_status.get(process_id, {}).get('status') == 'stopped':
             return
@@ -571,6 +588,20 @@ def process_images_background(process_id, images_folder, domain, import_neo4j, n
 
         update_progress(process_id, 30, '图片OCR文本提取中...')
 
+        env = os.environ.copy()
+        env['PYTHONIOENCODING'] = 'utf-8'  # 强制使用UTF-8编码
+
+        result = subprocess.run(
+            cmd,
+            timeout=3600,
+            stderr=subprocess.PIPE,
+            stdout=subprocess.PIPE,  # 添加 stdout 捕获
+            text=True,
+            encoding='utf-8',  # 明确指定编码
+            errors='replace',  # 遇到编码错误时替换为特殊字符
+            env=env  # 传递环境变量
+        )
+
         # 检查是否被停止
         if processing_status.get(process_id, {}).get('status') == 'stopped':
             return
@@ -587,7 +618,7 @@ def process_images_background(process_id, images_folder, domain, import_neo4j, n
 
         # 等待进程完成
         try:
-            stdout, stderr = process.communicate(timeout=3600)
+            stdout, stderr = process.communicate(timeout=1800)
 
             # 检查是否被手动停止
             if processing_status.get(process_id, {}).get('status') == 'stopped':
@@ -657,6 +688,20 @@ def process_json_background(process_id, filepath, domain, import_neo4j, neo4j_co
             ])
 
         update_progress(process_id, 40, 'LLM知识提取中...')
+
+        env = os.environ.copy()
+        env['PYTHONIOENCODING'] = 'utf-8'
+
+        result = subprocess.run(
+            cmd,
+            timeout=3600,
+            stderr=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            text=True,
+            encoding='utf-8',
+            errors='replace',
+            env=env
+        )
 
         # 检查是否被停止
         if processing_status.get(process_id, {}).get('status') == 'stopped':

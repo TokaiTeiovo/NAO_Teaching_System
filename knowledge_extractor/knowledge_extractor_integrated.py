@@ -10,6 +10,7 @@ import argparse
 import gc
 import json
 import logging
+import os
 import re
 import sys
 import time
@@ -25,6 +26,20 @@ from tqdm import tqdm
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 
 PYMUPDF_AVAILABLE = False
+
+# 设置环境编码
+if sys.platform.startswith('win'):
+    os.environ['PYTHONIOENCODING'] = 'utf-8'
+
+# 在已有的导入语句后添加
+import locale
+try:
+    locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
+except:
+    try:
+        locale.setlocale(locale.LC_ALL, 'C.UTF-8')
+    except:
+        pass  # 如果都失败就使用默认编码
 
 try:
     from py2neo import Graph
@@ -1485,7 +1500,6 @@ def extract_from_pdf(pdf_path, args):
     logger.info(f"完整PDF OCR结果已保存: {ocr_output}")
 
     return all_page_texts
-
 
 def display_extraction_stats(all_texts, content_type):
     """显示提取统计信息"""

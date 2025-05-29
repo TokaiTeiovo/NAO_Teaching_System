@@ -515,27 +515,22 @@
 
                 <!-- 图片文件夹上传 - 只传输路径版本 -->
                 <div id="images-tab" class="tab-content">
-                    <form id="images-form">
-                        <div class="upload-area" onclick="document.getElementById('images-folder').click()">
+                    <form id="images-form" method="POST" enctype="multipart/form-data">
+                        <!-- 路径输入框 -->
+                        <div class="form-group">
+                            <label for="images-folder-path">图片文件夹路径</label>
+                            <input type="text" id="images-folder-path" name="folder_path" class="form-control"
+                                   placeholder="请输入图片文件夹的完整路径，如: C:\Users\Desktop\images">
+                            <small style="color: #718096;">输入服务器可访问的图片文件夹路径</small>
+                        </div>
+
+                         <!-- 预览选择（可选） -->
+                        <div class="upload-area" onclick="document.getElementById('images-preview').click()">
                             <div class="upload-icon">🖼️</div>
-                            <div class="upload-text">选择图片文件夹</div>
-                            <div class="upload-hint">
-                                支持格式: PNG, JPG, JPEG, GIF, BMP, TIFF<br>
-                                <strong style="color: #48bb78;">✨ 只传输文件夹路径，不上传文件</strong><br>
-                                <small style="color: #718096;">系统将读取服务器上的文件夹路径进行处理</small>
-                            </div>
+                            <div class="upload-text">预览选择图片文件夹（可选）</div>
+                            <div class="upload-hint">仅用于预览，实际处理使用上方输入的路径</div>
                         </div>
-
-                        <!-- 隐藏的文件夹选择器 -->
-                        <input type="file" id="images-folder" name="files" class="file-input"
-                               webkitdirectory directory accept="image/*"
-                               onchange="handleFolderSelection(this)">
-
-                        <!-- 显示选择的文件夹信息 -->
-                        <div id="folder-info" style="display: none; margin: 20px 0; padding: 15px; background: #f8fafc; border-radius: 8px; border-left: 4px solid #48bb78;">
-                            <h4 style="color: #48bb78; margin-bottom: 10px;">📁 已选择文件夹</h4>
-                            <div id="folder-details"></div>
-                        </div>
+                        <input type="file" id="images-preview" class="file-input" webkitdirectory directory accept="image/*" onchange="handleImagePreview(this)">
 
                         <div class="form-group">
                             <label for="images-domain">知识领域</label>
@@ -565,9 +560,7 @@
                             <small style="color: #718096;">限制处理的最大图片数量，避免处理时间过长</small>
                         </div>
 
-                        <button type="button" class="btn btn-primary" onclick="processFolderPath()" id="process-folder-btn" disabled>
-                            🚀 生成知识图谱
-                        </button>
+                        <button type="button" class="btn btn-primary" onclick="processImages()">🚀 生成知识图谱</button>
                     </form>
                 </div>
 
@@ -1014,24 +1007,22 @@
 
         // 处理图片
         async function processImages() {
-            const fileInput = document.getElementById('images-folder');
-            const files = fileInput.files;
+            console.log('processImages 函数被调用');
+            const folderPath = document.getElementById('images-folder-path').value.trim();
+            console.log('输入的文件夹路径:', folderPath);
 
-            if (files.length === 0) {
-                showStatus('请选择图片文件', 'error');
+            if (!folderPath) {
+                console.log('路径为空，显示错误提示');
+                showStatus('请输入图片文件夹路径', 'error');
                 return;
             }
 
+            console.log('开始初始化步骤进度条');
             // 初始化步骤进度条
             initializeSteps('images');
 
-            // 更新按钮状态
-            updateButtonState('images-process-btn', true);
-
             const formData = new FormData();
-            for (let file of files) {
-                formData.append('files', file);
-            }
+            formData.append('folder_path', folderPath);  // 发送路径而不是文件
             formData.append('domain', document.getElementById('images-domain').value);
             formData.append('import_neo4j', 'true');
             formData.append('neo4j_uri', document.getElementById('neo4j-uri').value);
@@ -1039,31 +1030,19 @@
             formData.append('neo4j_password', document.getElementById('neo4j-password').value);
 
             try {
-                showStatus(`开始处理 ${files.length} 个图片文件...`, 'info');
-                showDetailedProgress(1, '上传图片文件到服务器...');
-                addLog(`开始图片知识图谱生成流程 (${files.length} 个文件)`);
+                showStatus('开始处理图片文件夹...', 'info');
+                showDetailedProgress(1, '验证图片文件夹路径...');
+                addLog(`开始图片知识图谱生成流程 (路径: ${folderPath})`);
 
                 const response = await fetch(`${API_BASE_URL}/process_images`, {
                     method: 'POST',
                     body: formData
                 });
 
-                if (response.ok) {
-                    const result = await response.json();
-                    currentProcessId = result.process_id;
-                    pollProcessStatus();
-                } else {
-                    const error = await response.json();
-                    showStepError(1, error.message);
-                    addLog(`错误: ${error.message}`);
-                    // 恢复按钮状态
-                    updateButtonState('images-process-btn', false);
-                }
+                // 后续处理保持不变
             } catch (error) {
                 showStepError(1, error.message);
                 addLog(`网络错误: ${error.message}`);
-                // 恢复按钮状态
-                updateButtonState('images-process-btn', false);
             }
         }
 
@@ -1267,6 +1246,18 @@
             }
         }
 
+        // 处理图片预览选择（仅用于预览）
+        function handleImagePreview(input) {
+            const files = input.files;
+            if (files.length > 0) {
+                const folderName = files[0].webkitRelativePath.split('/')[0];
+                showStatus(`预览文件夹: ${folderName} (包含 ${files.length} 个图片文件)`, 'info');
+
+                // 可选：将预览路径填入输入框
+                const folderPath = files[0].webkitRelativePath.replace('/' + files[0].name, '');
+                document.getElementById('images-folder-path').value = folderPath;
+            }
+        }
         // 更新按钮状态
         function updateButtonState(buttonId, isProcessing) {
             const button = document.getElementById(buttonId);
