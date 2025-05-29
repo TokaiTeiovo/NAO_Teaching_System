@@ -70,7 +70,8 @@
         }
 
         .main-grid {
-            display: block;
+            display: grid;
+            grid-template-columns: 2fr 1fr;
             gap: 20px;
             margin-bottom: 20px;
         }
@@ -400,6 +401,56 @@
                     <button class="btn btn-primary" onclick="sendMessage()" id="sendButton">
                         发送
                     </button>
+                </div>
+            </div>
+
+            <!-- 情感分析面板 -->
+            <div class="panel">
+                <h2>😊 情感分析</h2>
+
+                <div class="emotion-display">
+                    <h3 style="margin-bottom: 10px;">当前情感状态</h3>
+                    <div id="currentEmotion" style="font-size: 1.5em; text-align: center; color: #667eea;">
+                        中性 😐
+                    </div>
+                    <div id="emotionConfidence" style="text-align: center; color: #718096; margin-top: 5px;">
+                        置信度: 0%
+                    </div>
+                </div>
+
+                <div class="emotion-grid" id="emotionGrid">
+                    <!-- 情感概率分布将在这里动态生成 -->
+                </div>
+
+                <div class="learning-states">
+                    <h3 style="margin-bottom: 10px;">学习状态评估</h3>
+                    <div class="state-item">
+                        <span>注意力:</span>
+                        <div>
+                            <span id="attentionValue">50%</span>
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="attentionBar" style="width: 50%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="state-item">
+                        <span>参与度:</span>
+                        <div>
+                            <span id="engagementValue">50%</span>
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="engagementBar" style="width: 50%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="state-item">
+                        <span>理解度:</span>
+                        <div>
+                            <span id="understandingValue">50%</span>
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="understandingBar" style="width: 50%"></div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

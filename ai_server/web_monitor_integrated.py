@@ -420,6 +420,240 @@ def stop_process(process_id):
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/validate_image_path', methods=['POST'])
+def validate_image_path():
+    """验证图片文件夹路径"""
+    try:
+        data = request.get_json()
+        folder_path = data.get('folder_path', '').strip()
+
+        if not folder_path:
+            return jsonify({'success': False, 'error': '请提供文件夹路径'}), 400
+
+        folder_path = Path(folder_path)
+
+        if not folder_path.exists():
+            return jsonify({'success': False, 'error': '文件夹路径不存在'}), 400
+
+        if not folder_path.is_dir():
+            return jsonify({'success': False, 'error': '路径不是一个文件夹'}), 400
+
+        # 支持的图片格式
+        supported_formats = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.tif', '.webp'}
+
+        # 获取所有图片文件
+        image_files = []
+        format_stats = {}
+        total_size = 0
+
+        for ext in supported_formats:
+            files = list(folder_path.glob(f"**/*{ext}"))
+            files.extend(list(folder_path.glob(f"**/*{ext.upper()}")))
+            image_files.extend(files)
+
+        # 去重并统计
+        image_files = list(set(image_files))
+
+        for img_file in image_files:
+            ext = img_file.suffix.lower()
+            format_stats[ext] = format_stats.get(ext, 0) + 1
+            try:
+                total_size += img_file.stat().st_size
+            except:
+                pass
+
+        if len(image_files) == 0:
+            return jsonify({'success': False, 'error': '文件夹中未找到支持的图片文件'}), 400
+
+        info = {
+            'total_images': len(image_files),
+            'format_stats': format_stats,
+            'total_size_mb': total_size / (1024 * 1024),
+            'folder_path': str(folder_path)
+        }
+
+        return jsonify({'success': True, 'info': info})
+
+    except Exception as e:
+        logger.error(f"验证图片路径时出错: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/process_images_folder', methods=['POST'])
+def process_images_folder():
+    """处理图片文件夹（通过路径）"""
+    try:
+        data = request.get_json()
+        folder_path = data.get('folder_path', '').strip()
+
+        if not folder_path:
+            return jsonify({'error': '请提供文件夹路径'}), 400
+
+        folder_path = Path(folder_path)
+
+        if not folder_path.exists() or not folder_path.is_dir():
+            return jsonify({'error': '文件夹路径无效'}), 400
+
+        # 获取参数
+        domain = data.get('domain', '计算机科学')
+        batch_size = data.get('batch_size', 10)
+        max_count = data.get('max_count')
+        import_neo4j = data.get('import_neo4j', True)
+        neo4j_config = data.get('neo4j_config', {
+            'uri': 'bolt://localhost:7687',
+            'user': 'neo4j',
+            'password': 'admin123'
+        })
+
+        # 验证文件夹并统计图片数量
+        supported_formats = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.tif', '.webp'}
+        image_files = []
+
+        for ext in supported_formats:
+            files = list(folder_path.glob(f"**/*{ext}"))
+            files.extend(list(folder_path.glob(f"**/*{ext.upper()}")))
+            image_files.extend(files)
+
+        image_files = list(set(image_files))  # 去重
+
+        if not image_files:
+            return jsonify({'error': '文件夹中未找到支持的图片文件'}), 400
+
+        # 生成处理ID
+        process_id = f"images_folder_{int(time.time())}"
+        processing_status[process_id] = {
+            'status': 'processing',
+            'progress': 0,
+            'message': f'开始处理文件夹中的 {len(image_files)} 张图片...',
+            'file_type': 'images'
+        }
+
+        # 启动后台处理
+        thread = threading.Thread(
+            target=process_images_folder_background,
+            args=(process_id, str(folder_path), domain, batch_size, max_count, import_neo4j, neo4j_config)
+        )
+        thread.daemon = True
+        thread.start()
+
+        return jsonify({
+            'process_id': process_id,
+            'message': 'Images folder processing started',
+            'total_images': len(image_files)
+        })
+
+    except Exception as e:
+        logger.error(f"处理图片文件夹时出错: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+def process_images_folder_background(process_id, folder_path, domain, batch_size, max_count, import_neo4j,
+                                     neo4j_config):
+    """后台处理图片文件夹"""
+    try:
+        update_progress(process_id, 10, '图片文件夹验证完成')
+
+        # 检查是否被停止
+        if processing_status.get(process_id, {}).get('status') == 'stopped':
+            return
+
+        # 构建命令
+        cmd = [
+            sys.executable,
+            str(PROJECT_ROOT / "knowledge_extractor" / "knowledge_extractor_integrated.py"),
+            "--images", folder_path,
+            "--domain", domain,
+            "--batch-size", str(batch_size),
+            "--output", f"knowledge_graph_{process_id}.json"
+        ]
+
+        if max_count:
+            cmd.extend(["--max-items", str(max_count)])
+
+        if import_neo4j:
+            cmd.extend([
+                "--import-neo4j",
+                "--neo4j-uri", neo4j_config['uri'],
+                "--neo4j-user", neo4j_config['user'],
+                "--neo4j-password", neo4j_config['password']
+            ])
+
+        update_progress(process_id, 30, '开始图片OCR文本提取...')
+
+        # 检查是否被停止
+        if processing_status.get(process_id, {}).get('status') == 'stopped':
+            return
+
+        # 执行处理
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+
+        # 存储进程引用
+        processing_processes[process_id] = process
+
+        # 等待进程完成
+        try:
+            stdout, stderr = process.communicate(timeout=3600)
+
+            # 检查是否被手动停止
+            if processing_status.get(process_id, {}).get('status') == 'stopped':
+                return
+
+            if process.returncode == 0:
+                # 尝试从输出中解析统计信息
+                concepts_count = 'N/A'
+                relations_count = 'N/A'
+
+                # 简单的正则表达式匹配输出中的统计信息
+                import re
+                if stdout:
+                    concept_match = re.search(r'提取概念.*?(\d+).*?个', stdout)
+                    relation_match = re.search(r'提取关系.*?(\d+).*?个', stdout)
+                    if concept_match:
+                        concepts_count = concept_match.group(1)
+                    if relation_match:
+                        relations_count = relation_match.group(1)
+
+                processing_status[process_id].update({
+                    'status': 'completed',
+                    'progress': 100,
+                    'message': '处理完成！',
+                    'result': {
+                        'concepts_count': concepts_count,
+                        'relations_count': relations_count,
+                        'neo4j_imported': import_neo4j
+                    }
+                })
+            else:
+                error_msg = stderr if stderr else 'Processing failed'
+                processing_status[process_id].update({
+                    'status': 'error',
+                    'error': error_msg[:500]  # 限制错误消息长度
+                })
+        except subprocess.TimeoutExpired:
+            process.kill()
+            processing_status[process_id].update({
+                'status': 'error',
+                'error': '处理超时'
+            })
+        finally:
+            # 清理进程引用
+            if process_id in processing_processes:
+                del processing_processes[process_id]
+
+    except Exception as e:
+        processing_status[process_id].update({
+            'status': 'error',
+            'error': str(e)[:500]
+        })
+        # 清理进程引用
+        if process_id in processing_processes:
+            del processing_processes[process_id]
+
 def test_neo4j():
     """测试Neo4j连接"""
     try:
