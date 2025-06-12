@@ -3,7 +3,7 @@
 
 """
 多模态智能教学系统 - AI服务器独立启动器
-包含: LLM模型、对话管理、情感分析、WebSocket服务
+包含: LLM模型、对话管理、WebSocket服务
 """
 
 import argparse
@@ -19,7 +19,7 @@ sys.path.append(str(PROJECT_ROOT))
 try:
     from ai_server.ai_server_integrated import start_server
 except ImportError:
-    print("❌ 无法导入AI服务器模块，请检查路径配置")
+    print("[错误] 无法导入AI服务器模块，请检查路径配置")
     sys.exit(1)
 
 
@@ -27,11 +27,10 @@ def print_banner():
     """显示启动横幅"""
     banner = """
 ╔══════════════════════════════════════════════════╗
-║           🤖 AI服务器 - 独立启动器                ║
+║           [机器人] AI服务器 - 独立启动器                ║
 ║                                                  ║
 ║  • 大语言模型 (DeepSeek-7B-Chat)                 ║
 ║  • 智能对话管理                                  ║
-║  • 多模态情感分析                                ║
 ║  • WebSocket实时通信                             ║
 ╚══════════════════════════════════════════════════╝
 """
@@ -53,19 +52,19 @@ def check_requirements():
     for dir_path in required_dirs:
         if not dir_path.exists():
             dir_path.mkdir(parents=True, exist_ok=True)
-            print(f"   ✅ 创建目录: {dir_path}")
+            print(f"   [成功] 创建目录: {dir_path}")
         else:
-            print(f"   ✅ 目录存在: {dir_path}")
+            print(f"   [成功] 目录存在: {dir_path}")
 
     # 检查配置文件
     config_file = PROJECT_ROOT / "config.json"
     if not config_file.exists():
-        print(f"   ⚠️  配置文件不存在: {config_file}")
+        print(f"   [警告]  配置文件不存在: {config_file}")
         print("      系统将使用默认配置")
     else:
-        print(f"   ✅ 配置文件: {config_file}")
+        print(f"   [成功] 配置文件: {config_file}")
 
-    print("✅ 环境检查完成")
+    print("[成功] 环境检查完成")
 
 
 async def main():
@@ -103,26 +102,26 @@ async def main():
     # 检查环境
     check_requirements()
 
-    print(f"\n🚀 启动AI服务器...")
-    print(f"   📍 主机地址: {args.host}")
-    print(f"   🔌 端口号: {args.port}")
+    print(f"\n[启动] 启动AI服务器...")
+    print(f"   [圆钉] 主机地址: {args.host}")
+    print(f"   [插头] 端口号: {args.port}")
     if args.config:
-        print(f"   ⚙️  配置文件: {args.config}")
-    print(f"   🐛 调试模式: {'开启' if args.debug else '关闭'}")
+        print(f"   [齿轮]  配置文件: {args.config}")
+    print(f"   [虫] 调试模式: {'开启' if args.debug else '关闭'}")
 
-    print(f"\n📋 服务信息:")
-    print(f"   🌐 WebSocket地址: ws://{args.host}:{args.port}")
-    print(f"   💬 支持功能: 智能对话、情感分析、多模态处理")
-    print(f"   🔧 控制: 按 Ctrl+C 停止服务")
+    print(f"\n[剪贴板] 服务信息:")
+    print(f"   [网络] WebSocket地址: ws://{args.host}:{args.port}")
+    print(f"   [对话] 支持功能: 智能对话、多模态处理")
+    print(f"   [扳手] 控制: 按 Ctrl+C 停止服务")
 
     try:
         # 启动AI服务器
         await start_server(args.host, args.port)
     except KeyboardInterrupt:
-        print("\n\n🛑 收到停止信号...")
-        print("👋 AI服务器已关闭，感谢使用！")
+        print("\n\n[符号] 收到停止信号...")
+        print("[符号] AI服务器已关闭，感谢使用！")
     except Exception as e:
-        print(f"\n❌ AI服务器启动失败: {e}")
+        print(f"\n[错误] AI服务器启动失败: {e}")
         sys.exit(1)
 
 
@@ -130,7 +129,7 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("\n👋 程序被用户中断")
+        print("\n[符号] 程序被用户中断")
     except Exception as e:
-        print(f"❌ 程序运行出错: {e}")
+        print(f"[错误] 程序运行出错: {e}")
         sys.exit(1)

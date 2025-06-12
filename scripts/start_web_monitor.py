@@ -27,13 +27,13 @@ def main():
 
     # 检查虚拟环境是否存在
     if not Path(python_path).exists():
-        print("❌ AI服务器虚拟环境不存在!")
+        print("[错误] AI服务器虚拟环境不存在!")
         print("请先运行: python setup_environments.py")
         sys.exit(1)
 
-    print("🌐 启动Web监控界面...")
-    print(f"📁 工作目录: {ai_server_dir}")
-    print(f"🐍 Python路径: {python_path}")
+    print("[网络] 启动Web监控界面...")
+    print(f"[文件夹] 工作目录: {ai_server_dir}")
+    print(f"[蛇] Python路径: {python_path}")
 
     # 启动Web监控，传递所有命令行参数
     cmd = [python_path, "web_monitor_integrated.py"] + sys.argv[1:]

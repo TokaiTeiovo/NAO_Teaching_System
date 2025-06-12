@@ -193,7 +193,7 @@ class EnhancedTeachingSystem:
             # 5. 检查知识图谱
             await self._check_knowledge_graph()
 
-            self.logger.info("✅ 系统初始化完成!")
+            self.logger.info("[成功] 系统初始化完成!")
             self._print_system_status()
 
         except Exception as e:
@@ -202,7 +202,7 @@ class EnhancedTeachingSystem:
 
     async def _initialize_llm(self):
         """初始化大语言模型"""
-        self.logger.info("🤖 初始化大语言模型...")
+        self.logger.info("[机器人] 初始化大语言模型...")
 
         try:
             from ai_server.ai_server_integrated import Config
@@ -214,17 +214,17 @@ class EnhancedTeachingSystem:
             test_response = self.llm_model.generate("你好", max_length=100)
             if test_response:
                 self.system_status["llm_loaded"] = True
-                self.logger.info("✅ 大语言模型加载成功")
+                self.logger.info("[成功] 大语言模型加载成功")
             else:
                 raise Exception("模型测试失败")
 
         except Exception as e:
-            self.logger.error(f"❌ 大语言模型初始化失败: {e}")
+            self.logger.error(f"[错误] 大语言模型初始化失败: {e}")
             self.system_status["llm_loaded"] = False
 
     async def _initialize_ocr(self):
         """初始化OCR模块"""
-        self.logger.info("📄 初始化OCR模块...")
+        self.logger.info("[页面] 初始化OCR模块...")
 
         try:
             ocr_config = self.config.get("ocr", {})
@@ -239,15 +239,15 @@ class EnhancedTeachingSystem:
             )
 
             self.system_status["ocr_ready"] = True
-            self.logger.info("✅ OCR模块初始化成功")
+            self.logger.info("[成功] OCR模块初始化成功")
 
         except Exception as e:
-            self.logger.error(f"❌ OCR模块初始化失败: {e}")
+            self.logger.error(f"[错误] OCR模块初始化失败: {e}")
             self.system_status["ocr_ready"] = False
 
     async def _initialize_emotion(self):
         """初始化情感分析模块"""
-        self.logger.info("😊 初始化情感分析模块...")
+        self.logger.info("[微笑] 初始化情感分析模块...")
 
         try:
             emotion_config = self.config.get("emotion", {})
@@ -257,17 +257,17 @@ class EnhancedTeachingSystem:
             test_result = self.emotion_fusion.fuse_emotions(text="我很高兴学习新知识")
             if test_result and "emotion" in test_result:
                 self.system_status["emotion_ready"] = True
-                self.logger.info("✅ 情感分析模块初始化成功")
+                self.logger.info("[成功] 情感分析模块初始化成功")
             else:
                 raise Exception("情感分析测试失败")
 
         except Exception as e:
-            self.logger.error(f"❌ 情感分析模块初始化失败: {e}")
+            self.logger.error(f"[错误] 情感分析模块初始化失败: {e}")
             self.system_status["emotion_ready"] = False
 
     async def _initialize_recommendation(self):
         """初始化推荐系统"""
-        self.logger.info("🎯 初始化推荐系统...")
+        self.logger.info("[目标] 初始化推荐系统...")
 
         try:
             # 查找知识图谱文件
@@ -291,17 +291,17 @@ class EnhancedTeachingSystem:
 
             if profile:
                 self.system_status["recommendation_ready"] = True
-                self.logger.info("✅ 推荐系统初始化成功")
+                self.logger.info("[成功] 推荐系统初始化成功")
             else:
                 raise Exception("推荐系统测试失败")
 
         except Exception as e:
-            self.logger.error(f"❌ 推荐系统初始化失败: {e}")
+            self.logger.error(f"[错误] 推荐系统初始化失败: {e}")
             self.system_status["recommendation_ready"] = False
 
     async def _check_knowledge_graph(self):
         """检查知识图谱状态"""
-        self.logger.info("📊 检查知识图谱...")
+        self.logger.info("[条形图] 检查知识图谱...")
 
         try:
             kg_paths = [
@@ -319,23 +319,23 @@ class EnhancedTeachingSystem:
 
                     if nodes_count > 0:
                         self.system_status["knowledge_graph_loaded"] = True
-                        self.logger.info(f"✅ 知识图谱加载成功: {nodes_count} 个节点, {links_count} 个关系")
+                        self.logger.info(f"[成功] 知识图谱加载成功: {nodes_count} 个节点, {links_count} 个关系")
                         return
 
-            self.logger.warning("⚠️ 未找到知识图谱文件，系统将使用默认知识库")
+            self.logger.warning("[警告] 未找到知识图谱文件，系统将使用默认知识库")
             self.system_status["knowledge_graph_loaded"] = False
 
         except Exception as e:
-            self.logger.error(f"❌ 知识图谱检查失败: {e}")
+            self.logger.error(f"[错误] 知识图谱检查失败: {e}")
             self.system_status["knowledge_graph_loaded"] = False
 
     def _print_system_status(self):
         """打印系统状态"""
         print("\n" + "=" * 60)
-        print("📚 基于大语言模型的多模态智能教学系统")
+        print("[书堆] 基于大语言模型的多模态智能教学系统")
         print("=" * 60)
 
-        status_symbols = {True: "✅", False: "❌"}
+        status_symbols = {True: "[成功]", False: "[错误]"}
 
         print(
             f"{status_symbols[self.system_status['llm_loaded']]} 大语言模型: {'就绪' if self.system_status['llm_loaded'] else '未就绪'}")
@@ -349,14 +349,14 @@ class EnhancedTeachingSystem:
             f"{status_symbols[self.system_status['knowledge_graph_loaded']]} 知识图谱: {'已加载' if self.system_status['knowledge_graph_loaded'] else '未加载'}")
 
         # 系统信息
-        print(f"\n🖥️ 系统信息:")
+        print(f"\n[台式机] 系统信息:")
         print(f"   CPU: {psutil.cpu_count()} 核心")
         print(f"   内存: {psutil.virtual_memory().total // (1024 ** 3)} GB")
         print(f"   GPU: {'可用' if torch.cuda.is_available() else '不可用'}")
         if torch.cuda.is_available():
             print(f"   GPU型号: {torch.cuda.get_device_name(0)}")
 
-        print(f"\n🌐 服务地址:")
+        print(f"\n[网络] 服务地址:")
         host = self.config["server"]["host"]
         port = self.config["server"]["port"]
         print(f"   HTTP服务: http://{host if host != '0.0.0.0' else 'localhost'}:{port}")
@@ -598,25 +598,25 @@ def create_web_app(teaching_system: EnhancedTeachingSystem):
     <body>
         <div class="container">
             <div class="header">
-                <h1>🤖 多模态智能教学系统</h1>
+                <h1>[机器人] 多模态智能教学系统</h1>
                 <p>基于大语言模型的智能教学助手</p>
             </div>
 
             <div class="status-grid">
                 <div class="status-card">
-                    <h3>🧠 大语言模型</h3>
+                    <h3>[模型] 大语言模型</h3>
                     <div id="llm-status">检查中...</div>
                 </div>
                 <div class="status-card">
-                    <h3>📄 文档处理</h3>
+                    <h3>[页面] 文档处理</h3>
                     <div id="ocr-status">检查中...</div>
                 </div>
                 <div class="status-card">
-                    <h3>😊 情感分析</h3>
+                    <h3>[微笑] 情感分析</h3>
                     <div id="emotion-status">检查中...</div>
                 </div>
                 <div class="status-card">
-                    <h3>🎯 智能推荐</h3>
+                    <h3>[目标] 智能推荐</h3>
                     <div id="recommendation-status">检查中...</div>
                 </div>
             </div>
@@ -636,7 +636,7 @@ def create_web_app(teaching_system: EnhancedTeachingSystem):
             </div>
 
             <div class="stats-section">
-                <h2>📊 系统统计</h2>
+                <h2>[条形图] 系统统计</h2>
                 <div class="stats-grid">
                     <div class="stats-card">
                         <h4>性能统计</h4>
@@ -727,10 +727,10 @@ def create_web_app(teaching_system: EnhancedTeachingSystem):
                     .then(response => response.json())
                     .then(data => {
                         const status = data.system_status;
-                        document.getElementById('llm-status').textContent = status.llm_loaded ? '✅ 就绪' : '❌ 未就绪';
-                        document.getElementById('ocr-status').textContent = status.ocr_ready ? '✅ 就绪' : '❌ 未就绪';
-                        document.getElementById('emotion-status').textContent = status.emotion_ready ? '✅ 就绪' : '❌ 未就绪';
-                        document.getElementById('recommendation-status').textContent = status.recommendation_ready ? '✅ 就绪' : '❌ 未就绪';
+                        document.getElementById('llm-status').textContent = status.llm_loaded ? '[成功] 就绪' : '[错误] 未就绪';
+                        document.getElementById('ocr-status').textContent = status.ocr_ready ? '[成功] 就绪' : '[错误] 未就绪';
+                        document.getElementById('emotion-status').textContent = status.emotion_ready ? '[成功] 就绪' : '[错误] 未就绪';
+                        document.getElementById('recommendation-status').textContent = status.recommendation_ready ? '[成功] 就绪' : '[错误] 未就绪';
 
                         // 更新统计信息
                         const perf = data.performance_stats;
@@ -836,9 +836,9 @@ async def main():
     app, socketio = create_web_app(teaching_system)
 
     # 启动服务器
-    print(f"\n🚀 启动Web服务器: http://{args.host}:{args.port}")
-    print("💡 在浏览器中打开上述地址开始使用系统")
-    print("🔧 按 Ctrl+C 退出系统\n")
+    print(f"\n[启动] 启动Web服务器: http://{args.host}:{args.port}")
+    print("[灯泡] 在浏览器中打开上述地址开始使用系统")
+    print("[扳手] 按 Ctrl+C 退出系统\n")
 
     try:
         socketio.run(
@@ -849,7 +849,7 @@ async def main():
             allow_unsafe_werkzeug=True
         )
     except KeyboardInterrupt:
-        print("\n👋 系统已停止，感谢使用！")
+        print("\n[符号] 系统已停止，感谢使用！")
 
 
 if __name__ == "__main__":

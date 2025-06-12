@@ -32,7 +32,7 @@ try:
     NEO4J_AVAILABLE = True
 except ImportError:
     NEO4J_AVAILABLE = False
-    print("⚠️  py2neo未安装，将跳过Neo4j查询功能")
+    print("[警告]  py2neo未安装，将跳过Neo4j查询功能")
 
 # 添加项目根目录到路径
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -198,10 +198,10 @@ class Neo4jKnowledgeQuery:
             self.graph = Graph(self.uri, auth=(self.user, self.password))
             # 测试连接
             self.graph.run("RETURN 1")
-            self.logger.info(f"✅ 成功连接到Neo4j数据库: {self.uri}")
+            self.logger.info(f"[成功] 成功连接到Neo4j数据库: {self.uri}")
             return True
         except Exception as e:
-            self.logger.warning(f"❌ 连接Neo4j数据库失败: {e}")
+            self.logger.warning(f"[失败] 连接Neo4j数据库失败: {e}")
             self.graph = None
             return False
 
@@ -384,7 +384,7 @@ class LLMModel:
                 self.logger.info(f"加载LoRA权重: {self.lora_path}")
                 self.model = PeftModel.from_pretrained(self.model, str(self.lora_path))
 
-            self.logger.info("✅ 模型加载完成")
+            self.logger.info("[成功] 模型加载完成")
         except Exception as e:
             self.logger.error(f"加载模型时出错: {e}", exc_info=True)
             raise
@@ -453,7 +453,7 @@ class LLMModel:
                 return prompt
 
             # 构建增强的prompt
-            context_text = "\n📚 相关知识背景：\n"
+            context_text = "\n[知识] 相关知识背景：\n"
 
             for item in kg_context:
                 if item['type'] == 'definition':
@@ -647,7 +647,7 @@ class ConversationManager:
                     # 添加概念推荐到回答中
                     concept_names = [r['concept'] for r in recommendations[:3]]
                     if concept_names:
-                        response += f"\n\n💡 相关概念推荐: {', '.join(concept_names)}"
+                        response += f"\n\n[灯泡] 相关概念推荐: {', '.join(concept_names)}"
 
             return response
         except Exception as e:
@@ -1097,12 +1097,12 @@ async def start_server(host="localhost", port=8765):
     """启动AI服务器 - 集成知识图谱功能"""
     try:
         logger = setup_logger('ai_server_starter', log_file='ai_server.log')
-        logger.info("🚀 启动Neo4j增强版AI服务器")
+        logger.info("[启动] 启动Neo4j增强版AI服务器")
 
-        logger.info("📋 加载配置...")
+        logger.info("[剪贴板] 加载配置...")
         config = Config()
 
-        logger.info("🧠 初始化知识图谱查询器...")
+        logger.info("[知识] 初始化知识图谱查询器...")
         kg_query = None
         try:
             # 尝试连接Neo4j
@@ -1112,48 +1112,48 @@ async def start_server(host="localhost", port=8765):
                 password=config.get("knowledge.neo4j.password", "admin123")
             )
             if kg_query.graph:
-                logger.info("✅ 知识图谱查询器初始化成功")
+                logger.info("[成功] 知识图谱查询器初始化成功")
             else:
-                logger.warning("⚠️  Neo4j连接失败，将不使用知识图谱功能")
+                logger.warning("[警告]  Neo4j连接失败，将不使用知识图谱功能")
                 kg_query = None
         except Exception as e:
-            logger.warning(f"⚠️  知识图谱查询器初始化失败: {e}")
+            logger.warning(f"[警告]  知识图谱查询器初始化失败: {e}")
             kg_query = None
 
-        logger.info("🤖 初始化大语言模型...")
+        logger.info("[机器人] 初始化大语言模型...")
         logger.info("正在加载大语言模型，这可能需要几分钟...")
         llm = LLMModel(config, kg_query)
-        logger.info("✅ 大语言模型已加载完成")
+        logger.info("[成功] 大语言模型已加载完成")
 
-        logger.info("💬 初始化对话管理器...")
+        logger.info("[对话] 初始化对话管理器...")
         conversation = ConversationManager(llm, kg_query)
 
-        logger.info(f"🌐 创建AI服务器: {host}:{port}")
+        logger.info(f"[网络] 创建AI服务器: {host}:{port}")
         server = AIWebSocketServer(
             host=host, port=port, config=config,
             llm=llm, conversation=conversation, kg_query=kg_query
         )
 
-        logger.info(f"🔌 正在启动WebSocket服务器: {host}:{port}")
+        logger.info(f"[插头] 正在启动WebSocket服务器: {host}:{port}")
         server_context = await server.start_server()
 
         # 显示服务器状态信息
-        kg_status = "✅ 已连接" if (kg_query and kg_query.graph) else "❌ 未连接"
+        kg_status = "[成功] 已连接" if (kg_query and kg_query.graph) else "[失败] 未连接"
         print(f"""
-🎉 Neo4j增强版智能教学系统已启动！
+[完成] Neo4j增强版智能教学系统已启动！
 
-📊 服务状态:
-   🌐 WebSocket服务: {host}:{port}
-   🧠 知识图谱服务: {kg_status}
-   🤖 大语言模型: ✅ 已加载
+[条形图] 服务状态:
+   [网络] WebSocket服务: {host}:{port}
+   [知识] 知识图谱服务: {kg_status}
+   [机器人] 大语言模型: [成功] 已加载
 
-💡 主要功能:
-   🔍 知识图谱搜索
-   📚 概念关系查询
-   🛤️  学习路径规划
-   💭 知识增强对话
+[灯泡] 主要功能:
+   [放大镜左] 知识图谱搜索
+   [知识] 概念关系查询
+   [路径]  学习路径规划
+   [思考] 知识增强对话
 
-🔧 按 Ctrl+C 退出服务器
+[扳手] 按 Ctrl+C 退出服务器
         """)
 
         try:

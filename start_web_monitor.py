@@ -20,7 +20,7 @@ sys.path.append(str(PROJECT_ROOT))
 try:
     from ai_server.web_monitor_integrated import main as web_main
 except ImportError:
-    print("❌ 无法导入Web监控模块，请检查路径配置")
+    print("[错误] 无法导入Web监控模块，请检查路径配置")
     sys.exit(1)
 
 
@@ -28,7 +28,7 @@ def print_banner():
     """显示启动横幅"""
     banner = """
 ╔══════════════════════════════════════════════════╗
-║          🌐 Web监控界面 - 独立启动器              ║
+║          [网络] Web监控界面 - 独立启动器              ║
 ║                                                  ║
 ║  • 实时系统监控                                  ║
 ║  • 智能对话测试                                  ║
@@ -53,21 +53,21 @@ def check_requirements():
     for dir_path in required_dirs:
         if not dir_path.exists():
             dir_path.mkdir(parents=True, exist_ok=True)
-            print(f"   ✅ 创建目录: {dir_path}")
+            print(f"   [成功] 创建目录: {dir_path}")
         else:
-            print(f"   ✅ 目录存在: {dir_path}")
+            print(f"   [成功] 目录存在: {dir_path}")
 
     # 检查依赖包
     try:
         import flask
         import psutil
-        print("   ✅ 核心依赖包正常")
+        print("   [成功] 核心依赖包正常")
     except ImportError as e:
-        print(f"   ❌ 依赖包缺失: {e}")
+        print(f"   [错误] 依赖包缺失: {e}")
         print("      请运行: pip install flask psutil")
         return False
 
-    print("✅ 环境检查完成")
+    print("[成功] 环境检查完成")
     return True
 
 
@@ -79,9 +79,9 @@ def open_browser(host, port, delay=3):
         url = f"http://{host if host != '0.0.0.0' else 'localhost'}:{port}"
         try:
             webbrowser.open(url)
-            print(f"🌐 已打开浏览器: {url}")
+            print(f"[网络] 已打开浏览器: {url}")
         except Exception as e:
-            print(f"⚠️ 无法自动打开浏览器: {e}")
+            print(f"[警告] 无法自动打开浏览器: {e}")
             print(f"   请手动访问: {url}")
 
     import threading
@@ -128,27 +128,27 @@ def main():
     if not check_requirements():
         sys.exit(1)
 
-    print(f"\n🚀 启动Web监控界面...")
-    print(f"   📍 主机地址: {args.host}")
-    print(f"   🔌 端口号: {args.port}")
-    print(f"   🐛 调试模式: {'开启' if args.debug else '关闭'}")
-    print(f"   🌐 自动打开浏览器: {'否' if args.no_browser else '是'}")
+    print(f"\n[启动] 启动Web监控界面...")
+    print(f"   [圆钉] 主机地址: {args.host}")
+    print(f"   [插头] 端口号: {args.port}")
+    print(f"   [虫] 调试模式: {'开启' if args.debug else '关闭'}")
+    print(f"   [网络] 自动打开浏览器: {'否' if args.no_browser else '是'}")
 
     # 生成访问地址
     access_url = f"http://{args.host if args.host != '0.0.0.0' else 'localhost'}:{args.port}"
 
-    print(f"\n📋 服务信息:")
-    print(f"   🌍 访问地址: {access_url}")
-    print(f"   💡 功能说明:")
+    print(f"\n[剪贴板] 服务信息:")
+    print(f"   [全球] 访问地址: {access_url}")
+    print(f"   [灯泡] 功能说明:")
     print(f"      • 实时系统监控 (CPU、内存、GPU)")
     print(f"      • AI对话测试界面")
     print(f"      • 情感分析可视化")
     print(f"      • 学习状态统计")
-    print(f"   🔧 控制: 按 Ctrl+C 停止服务")
+    print(f"   [扳手] 控制: 按 Ctrl+C 停止服务")
 
     # 自动打开浏览器
     if not args.no_browser:
-        print(f"\n🌐 将在3秒后自动打开浏览器...")
+        print(f"\n[网络] 将在3秒后自动打开浏览器...")
         open_browser(args.host, args.port, delay=3)
 
     try:
@@ -166,10 +166,10 @@ def main():
         web_main()
 
     except KeyboardInterrupt:
-        print("\n\n🛑 收到停止信号...")
-        print("👋 Web监控界面已关闭，感谢使用！")
+        print("\n\n[符号] 收到停止信号...")
+        print("[符号] Web监控界面已关闭，感谢使用！")
     except Exception as e:
-        print(f"\n❌ Web服务器启动失败: {e}")
+        print(f"\n[错误] Web服务器启动失败: {e}")
         sys.exit(1)
     finally:
         # 恢复原始argv
@@ -180,7 +180,7 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\n👋 程序被用户中断")
+        print("\n[符号] 程序被用户中断")
     except Exception as e:
-        print(f"❌ 程序运行出错: {e}")
+        print(f"[错误] 程序运行出错: {e}")
         sys.exit(1)

@@ -994,11 +994,11 @@ def main():
 
     try:
         logger.info("正在启动Flask API服务器...")
-        print(f"\n🌐 多模态智能教学系统 - Web API后端")
-        print(f"📍 API服务器: http://{args.host}:{args.port}")
-        print(f"📍 静态文件: {STATIC_DIR}")
-        print(f"🔧 系统监控已启动")
-        print(f"💡 使用说明:")
+        print(f"\n[网络] 多模态智能教学系统 - Web API后端")
+        print(f"[圆钉] API服务器: http://{args.host}:{args.port}")
+        print(f"[圆钉] 静态文件: {STATIC_DIR}")
+        print(f"[扳手] 系统监控已启动")
+        print(f"[灯泡] 使用说明:")
         print(f"   1. 将前端文件放置在 {STATIC_DIR} 目录")
         print(f"   2. 访问 http://{args.host}:{args.port} 查看应用")
         print(f"   3. API接口前缀: /api/")

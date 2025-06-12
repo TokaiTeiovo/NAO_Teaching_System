@@ -20,9 +20,9 @@ def print_banner():
 ║               基于大语言模型的多模态智能教学系统              ║
 ║                        一键启动脚本                          ║
 ║                                                               ║
-║  • 🤖 AI服务器 (智能对话)                                     ║
-║  • 🌐 Web监控 (实时监控)                                      ║
-║  • 📊 知识提取 (PDF处理)                                      ║
+║  • [机器人] AI服务器 (智能对话)                                     ║
+║  • [网络] Web监控 (实时监控)                                      ║
+║  • [条形图] 知识提取 (PDF处理)                                      ║
 ╚═══════════════════════════════════════════════════════════════╝
 """
     print(banner)
@@ -30,7 +30,7 @@ def print_banner():
 
 def check_environments():
     """检查虚拟环境"""
-    print("🔍 检查虚拟环境...")
+    print("[放大镜左] 检查虚拟环境...")
 
     script_dir = Path(__file__).parent
     project_root = script_dir.parent
@@ -40,27 +40,27 @@ def check_environments():
     ai_python = ai_server_dir / ("venv/Scripts/python.exe" if os.name == 'nt' else "venv/bin/python")
 
     if not ai_python.exists():
-        print("❌ AI服务器虚拟环境不存在")
+        print("[错误] AI服务器虚拟环境不存在")
         return False
     else:
-        print("✅ AI服务器虚拟环境正常")
+        print("[成功] AI服务器虚拟环境正常")
 
     # 检查知识提取器环境
     ke_dir = project_root / "knowledge_extractor"
     ke_python = ke_dir / ("kl_venv/Scripts/python.exe")
 
     if not ke_python.exists():
-        print("❌ 知识提取器虚拟环境不存在")
+        print("[错误] 知识提取器虚拟环境不存在")
         return False
     else:
-        print("✅ 知识提取器虚拟环境正常")
+        print("[成功] 知识提取器虚拟环境正常")
 
     return True
 
 
 def start_ai_server():
     """启动AI服务器"""
-    print("\n🤖 启动AI服务器进程...")
+    print("\n[机器人] 启动AI服务器进程...")
 
     script_dir = Path(__file__).parent
     start_script = script_dir / "start_ai_server.py"
@@ -74,17 +74,17 @@ def start_ai_server():
             bufsize=1
         )
 
-        print(f"✅ AI服务器已启动 (PID: {process.pid})")
+        print(f"[成功] AI服务器已启动 (PID: {process.pid})")
         print("   WebSocket地址: ws://localhost:8765")
         return process
     except Exception as e:
-        print(f"❌ AI服务器启动失败: {e}")
+        print(f"[错误] AI服务器启动失败: {e}")
         return None
 
 
 def start_web_monitor():
     """启动Web监控"""
-    print("\n🌐 启动Web监控进程...")
+    print("\n[网络] 启动Web监控进程...")
 
     script_dir = Path(__file__).parent
     start_script = script_dir / "start_web_monitor.py"
@@ -98,26 +98,26 @@ def start_web_monitor():
             bufsize=1
         )
 
-        print(f"✅ Web监控已启动 (PID: {process.pid})")
+        print(f"[成功] Web监控已启动 (PID: {process.pid})")
         print("   监控地址: http://localhost:5000")
         return process
     except Exception as e:
-        print(f"❌ Web监控启动失败: {e}")
+        print(f"[错误] Web监控启动失败: {e}")
         return None
 
 
 def start_knowledge_extraction(pdf_path):
     """启动知识提取"""
     if not pdf_path:
-        print("⚠️  未指定PDF文件，跳过知识提取")
+        print("[警告]  未指定PDF文件，跳过知识提取")
         return None
 
     pdf_file = Path(pdf_path)
     if not pdf_file.exists():
-        print(f"⚠️  PDF文件不存在: {pdf_path}")
+        print(f"[警告]  PDF文件不存在: {pdf_path}")
         return None
 
-    print(f"\n📊 启动知识提取: {pdf_path}")
+    print(f"\n[条形图] 启动知识提取: {pdf_path}")
 
     script_dir = Path(__file__).parent
     start_script = script_dir / "start_knowledge_extractor.py"
@@ -131,23 +131,23 @@ def start_knowledge_extraction(pdf_path):
         ]
 
         process = subprocess.Popen(cmd)
-        print(f"✅ 知识提取已启动 (PID: {process.pid})")
+        print(f"[成功] 知识提取已启动 (PID: {process.pid})")
         return process
     except Exception as e:
-        print(f"❌ 知识提取启动失败: {e}")
+        print(f"[错误] 知识提取启动失败: {e}")
         return None
 
 
 def open_web_interface():
     """打开Web界面"""
-    print("\n🚀 正在打开Web监控界面...")
+    print("\n[启动] 正在打开Web监控界面...")
     time.sleep(3)  # 等待服务启动
 
     try:
         webbrowser.open("http://localhost:5000")
-        print("✅ Web界面已打开")
+        print("[成功] Web界面已打开")
     except Exception as e:
-        print(f"⚠️  无法自动打开浏览器: {e}")
+        print(f"[警告]  无法自动打开浏览器: {e}")
         print("请手动访问: http://localhost:5000")
 
 
@@ -165,12 +165,12 @@ def main():
 
     # 检查环境
     if not check_environments():
-        print("\n❌ 环境检查失败!")
+        print("\n[错误] 环境检查失败!")
         print("请运行: python setup_environments.py")
         sys.exit(1)
 
     if args.check_only:
-        print("\n✅ 环境检查完成，系统准备就绪!")
+        print("\n[成功] 环境检查完成，系统准备就绪!")
         return
 
     processes = []
@@ -195,11 +195,11 @@ def main():
             open_web_interface()
 
         if processes:
-            print(f"\n🎉 系统启动完成! 共启动了 {len(processes)} 个服务")
-            print("\n📋 服务信息:")
+            print(f"\n[完成] 系统启动完成! 共启动了 {len(processes)} 个服务")
+            print("\n[剪贴板] 服务信息:")
             print("   • AI服务器: ws://localhost:8765")
             print("   • Web监控: http://localhost:5000")
-            print("\n💡 使用说明:")
+            print("\n[灯泡] 使用说明:")
             print("   1. 访问Web监控界面测试对话功能")
             print("   2. 在监控界面中连接到AI服务器")
             print("   3. 输入问题测试智能教学功能")
@@ -210,25 +210,25 @@ def main():
                 while any(p.poll() is None for p in processes):
                     time.sleep(1)
             except KeyboardInterrupt:
-                print("\n\n🛑 用户中断，正在关闭系统...")
+                print("\n\n[符号] 用户中断，正在关闭系统...")
         else:
-            print("❌ 没有成功启动任何服务")
+            print("[错误] 没有成功启动任何服务")
 
     except KeyboardInterrupt:
-        print("\n\n🛑 用户中断，正在关闭系统...")
+        print("\n\n[符号] 用户中断，正在关闭系统...")
     except Exception as e:
-        print(f"\n❌ 系统运行出错: {e}")
+        print(f"\n[错误] 系统运行出错: {e}")
     finally:
         # 清理进程
         for process in processes:
             try:
                 if process.poll() is None:
                     process.terminate()
-                    print(f"✅ 进程 {process.pid} 已终止")
+                    print(f"[成功] 进程 {process.pid} 已终止")
             except Exception as e:
-                print(f"⚠️  终止进程时出错: {e}")
+                print(f"[警告]  终止进程时出错: {e}")
 
-        print("\n👋 系统已完全关闭，感谢使用!")
+        print("\n[符号] 系统已完全关闭，感谢使用!")
 
 
 if __name__ == "__main__":

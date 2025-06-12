@@ -24,13 +24,13 @@ def main():
 
     # 检查虚拟环境是否存在
     if not Path(python_path).exists():
-        print("❌ 知识提取器虚拟环境不存在!")
+        print("[错误] 知识提取器虚拟环境不存在!")
         print("请先运行: python setup_environments.py")
         sys.exit(1)
 
-    print("📊 启动知识提取器...")
-    print(f"📁 工作目录: {ke_dir}")
-    print(f"🐍 Python路径: {python_path}")
+    print("[条形图] 启动知识提取器...")
+    print(f"[文件夹] 工作目录: {ke_dir}")
+    print(f"[蛇] Python路径: {python_path}")
 
     # 启动知识提取器，传递所有命令行参数
     cmd = [python_path, "knowledge_extractor_integrated.py"] + sys.argv[1:]

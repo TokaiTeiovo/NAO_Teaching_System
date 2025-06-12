@@ -44,7 +44,7 @@ try:
     NEO4J_AVAILABLE = True
 except ImportError:
     NEO4J_AVAILABLE = False
-    print("⚠️  py2neo未安装，将跳过Neo4j导入功能")
+    print("[警告]  py2neo未安装，将跳过Neo4j导入功能")
 
 # 添加项目根目录到路径
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -273,7 +273,7 @@ class ImageFolderOCRExtractor:
         num_batches = (len(images_to_process) + self.batch_size - 1) // self.batch_size
 
         # 总体进度条
-        with tqdm(total=len(images_to_process), desc="🖼️  图片OCR", unit="张",
+        with tqdm(total=len(images_to_process), desc="[图片]  图片OCR", unit="张",
                   bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]") as pbar_total:
 
             for batch_idx in range(num_batches):
@@ -284,7 +284,7 @@ class ImageFolderOCRExtractor:
                 logger.info(f"处理批次 {batch_idx + 1}/{num_batches}: {len(batch_images)}张图片")
 
                 # 批次进度条
-                batch_desc = f"🔄 批次{batch_idx + 1}/{num_batches}"
+                batch_desc = f"[处理] 批次{batch_idx + 1}/{num_batches}"
 
                 with tqdm(total=len(batch_images), desc=batch_desc, unit="张", leave=False,
                           bar_format="{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt}") as pbar_batch:
@@ -555,7 +555,7 @@ class EnhancedPDFOCRExtractor:
             pic_dir = OUTPUT_DIR / f"pic_{timestamp}"
             pic_dir.mkdir(parents=True, exist_ok=True)
             logger.info(f"图像将保存到: {pic_dir}")
-            print(f"📸 图像保存目录: {pic_dir}")
+            print(f"[相机闪光] 图像保存目录: {pic_dir}")
         else:
             pic_dir = None
 
@@ -578,7 +578,7 @@ class EnhancedPDFOCRExtractor:
                 logger.info(f"处理批次 {batch_idx + 1}/{num_batches}: 第{batch_start + 1}-{batch_end}页")
 
                 # 批次进度条
-                batch_desc = f"🔄 批次{batch_idx + 1}/{num_batches}"
+                batch_desc = f"[处理] 批次{batch_idx + 1}/{num_batches}"
 
                 # 步骤1: PDF转图像 (带详细提示)
                 pbar_total.set_postfix_str(f"PDF转图像中... (DPI={dpi})")
@@ -587,7 +587,7 @@ class EnhancedPDFOCRExtractor:
                     logger.info(f"正在转换PDF第{batch_start + 1}-{batch_end}页为图像 (DPI={dpi})")
 
                     # 显示PDF转换进度
-                    with tqdm(total=batch_pages, desc="🖼️  PDF转图像", unit="页", leave=False,
+                    with tqdm(total=batch_pages, desc="[图片]  PDF转图像", unit="页", leave=False,
                               bar_format="{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt}") as pbar_pdf:
 
                         pages = convert_from_path(
@@ -696,7 +696,7 @@ class EnhancedPDFOCRExtractor:
                 json.dump(image_stats, f, ensure_ascii=False, indent=2)
 
             logger.info(f"图像统计信息已保存: {stats_file}")
-            print(f"📊 图像统计: 已保存{len(saved_images)}张图片到 {pic_dir}")
+            print(f"[条形图] 图像统计: 已保存{len(saved_images)}张图片到 {pic_dir}")
 
         logger.info(f"分批OCR处理完成，共处理{len(all_page_texts)}页")
         return all_page_texts
@@ -803,32 +803,32 @@ class LLMKnowledgeExtractor:
                 self.logger.info("GPU加速已启用")
                 self.logger.info(f"   GPU设备: {gpu_name}")
                 self.logger.info(f"   GPU显存: {gpu_memory:.1f}GB")
-                print(f"🚀 GPU加速已启用: {gpu_name} ({gpu_memory:.1f}GB)")
+                print(f"[启动] GPU加速已启用: {gpu_name} ({gpu_memory:.1f}GB)")
             except Exception as e:
                 self.logger.error(f"获取GPU信息时出错: {e}")
                 print("GPU加速已启用")
         else:
             if self.use_gpu:
                 self.logger.warning("GPU不可用，回退到CPU模式")
-                print("⚠️  GPU不可用，回退到CPU模式")
+                print("[警告]  GPU不可用，回退到CPU模式")
             else:
                 self.logger.info("使用CPU模式")
-                print("🖥️  使用CPU模式")
+                print("[台式机]  使用CPU模式")
 
         return device
 
     def _load_model(self):
         """加载大模型"""
         try:
-            self.logger.info(f"📂 加载模型: {self.model_path}")
-            self.logger.info(f"🎯 目标设备: {self.device}")
+            self.logger.info(f"[文件夹开] 加载模型: {self.model_path}")
+            self.logger.info(f"[目标] 目标设备: {self.device}")
 
             # 确定模型路径
             model_path_str = self.model_path if Path(self.model_path).exists() else "deepseek-ai/deepseek-llm-7b-chat"
-            self.logger.info(f"📍 实际路径: {model_path_str}")
+            self.logger.info(f"[圆钉] 实际路径: {model_path_str}")
 
             # 加载分词器
-            self.logger.info("🔤 加载分词器...")
+            self.logger.info("[符号] 加载分词器...")
             self.tokenizer = AutoTokenizer.from_pretrained(
                 model_path_str,
                 trust_remote_code=True
@@ -840,16 +840,16 @@ class LLMKnowledgeExtractor:
             else:
                 self._load_model_cpu(model_path_str)
 
-            self.logger.info("✅ 模型加载完成")
-            print("✅ 大语言模型加载完成")
+            self.logger.info("[成功] 模型加载完成")
+            print("[成功] 大语言模型加载完成")
 
         except Exception as e:
-            self.logger.error(f"❌ 加载模型时出错: {e}", exc_info=True)
+            self.logger.error(f"[错误] 加载模型时出错: {e}", exc_info=True)
             raise
 
     def _load_model_gpu(self, model_path_str):
         """GPU模式加载模型"""
-        self.logger.info("🚀 GPU模式加载中...")
+        self.logger.info("[启动] GPU模式加载中...")
 
         # 清理GPU显存
         if torch.cuda.is_available():
@@ -865,7 +865,7 @@ class LLMKnowledgeExtractor:
                 bnb_4bit_quant_storage=torch.uint8
             )
 
-            self.logger.info("🔧 使用4-bit量化配置")
+            self.logger.info("[扳手] 使用4-bit量化配置")
 
             # 加载模型到GPU
             self.model = AutoModelForCausalLM.from_pretrained(
@@ -880,26 +880,26 @@ class LLMKnowledgeExtractor:
 
             # 验证模型在GPU上
             actual_device = str(next(self.model.parameters()).device)
-            self.logger.info(f"✅ 模型实际加载设备: {actual_device}")
-            print(f"✅ 模型已加载到: {actual_device}")
+            self.logger.info(f"[成功] 模型实际加载设备: {actual_device}")
+            print(f"[成功] 模型已加载到: {actual_device}")
 
             if "cuda" not in actual_device.lower():
-                self.logger.warning("⚠️  模型未在GPU上，尝试手动移动...")
+                self.logger.warning("[警告]  模型未在GPU上，尝试手动移动...")
                 try:
                     self.model = self.model.to(self.device)
-                    self.logger.info("✅ 模型已手动移动到GPU")
+                    self.logger.info("[成功] 模型已手动移动到GPU")
                 except Exception as e:
-                    self.logger.error(f"❌ 手动移动到GPU失败: {e}")
+                    self.logger.error(f"[错误] 手动移动到GPU失败: {e}")
 
         except Exception as e:
-            self.logger.error(f"❌ GPU模式加载失败: {e}")
-            self.logger.info("🔄 回退到CPU模式...")
+            self.logger.error(f"[错误] GPU模式加载失败: {e}")
+            self.logger.info("[处理] 回退到CPU模式...")
             self.device = "cpu"
             self._load_model_cpu(model_path_str)
 
     def _load_model_cpu(self, model_path_str):
         """CPU模式加载模型"""
-        self.logger.info("🖥️  CPU模式加载中...")
+        self.logger.info("[台式机]  CPU模式加载中...")
 
         try:
             self.model = AutoModelForCausalLM.from_pretrained(
@@ -910,10 +910,10 @@ class LLMKnowledgeExtractor:
                 low_cpu_mem_usage=True
             )
 
-            self.logger.info("✅ CPU模式加载完成")
+            self.logger.info("[成功] CPU模式加载完成")
 
         except Exception as e:
-            self.logger.error(f"❌ CPU模式加载也失败: {e}")
+            self.logger.error(f"[错误] CPU模式加载也失败: {e}")
             raise
 
     def _generate_text(self, prompt, max_length=4096, temperature=0.7):
@@ -973,11 +973,11 @@ class LLMKnowledgeExtractor:
             return response
 
         except torch.cuda.OutOfMemoryError:
-            self.logger.error("❌ GPU显存不足！")
-            print("❌ GPU显存不足，请尝试减少batch_size或降低max_length")
+            self.logger.error("[错误] GPU显存不足！")
+            print("[错误] GPU显存不足，请尝试减少batch_size或降低max_length")
             raise
         except Exception as e:
-            self.logger.error(f"❌ 生成文本时出错: {e}", exc_info=True)
+            self.logger.error(f"[错误] 生成文本时出错: {e}", exc_info=True)
             return f"生成失败: {str(e)}"
 
     def extract_knowledge_from_pages_batch(self, page_texts, domain=None, temperature=0.2):
@@ -986,7 +986,7 @@ class LLMKnowledgeExtractor:
 
         logger.info(f"开始批量提取知识点，共{len(page_texts)}页/张")
 
-        with tqdm(page_texts.items(), desc="🧠 知识提取", unit="项",
+        with tqdm(page_texts.items(), desc="[模型] 知识提取", unit="项",
                   bar_format="{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]") as pbar:
 
             for page_num_str, page_text in pbar:
@@ -1196,7 +1196,7 @@ class LLMKnowledgeExtractor:
         self.response_cache.clear()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-        logger.info("🧹 缓存已清理")
+        logger.info("[清理] 缓存已清理")
 
 
 # ==================== Neo4j导入器 ====================
@@ -1212,7 +1212,7 @@ class Neo4jImporter:
         """将JSON格式的知识图谱导入到Neo4j"""
         if not NEO4J_AVAILABLE:
             logger.error("py2neo未安装，无法导入Neo4j数据库")
-            print("❌ py2neo未安装，跳过Neo4j导入")
+            print("[错误] py2neo未安装，跳过Neo4j导入")
             return False
 
         logger.info("正在导入知识图谱到Neo4j...")
@@ -1364,7 +1364,7 @@ def print_processing_info(mode, source_path, args):
 
 def extract_from_json(json_path, args):
     """从已提取的文字JSON文件中加载文本"""
-    print(f"\n📄 第一步：从JSON文件加载文本")
+    print(f"\n[页面] 第一步：从JSON文件加载文本")
 
     json_file = Path(json_path)
     if not json_file.is_absolute():
@@ -1390,22 +1390,22 @@ def extract_from_json(json_path, args):
             all_texts = json.load(f)
 
         logger.info(f"成功从JSON文件加载文本: {json_file}")
-        print(f"✅ 成功加载JSON文件: {json_file}")
-        print(f"📊 包含文本条目: {len(all_texts)} 个")
+        print(f"[成功] 成功加载JSON文件: {json_file}")
+        print(f"[条形图] 包含文本条目: {len(all_texts)} 个")
 
         return all_texts
 
     except Exception as e:
         logger.error(f"读取JSON文件时出错: {e}")
-        print(f"❌ 读取JSON文件失败: {e}")
+        print(f"[错误] 读取JSON文件失败: {e}")
         return {}
 
 
 def print_json_info(json_path, all_texts, args):
     """显示JSON文件信息"""
-    print(f"\n📄 JSON文件信息:")
-    print(f"   📁 文件路径: {json_path}")
-    print(f"   📊 文本条目: {len(all_texts)}")
+    print(f"\n[页面] JSON文件信息:")
+    print(f"   [文件夹] 文件路径: {json_path}")
+    print(f"   [条形图] 文本条目: {len(all_texts)}")
 
     if all_texts:
         # 统计文本质量
@@ -1413,12 +1413,12 @@ def print_json_info(json_path, all_texts, args):
         avg_chars = total_chars / len(all_texts)
         non_empty_count = sum(1 for text in all_texts.values() if text.strip())
 
-        print(f"   📝 总字符数: {total_chars:,}")
-        print(f"   📄 平均字符/条目: {avg_chars:.0f}")
-        print(f"   📈 有效条目: {non_empty_count}/{len(all_texts)} ({non_empty_count / len(all_texts) * 100:.1f}%)")
+        print(f"   [备忘录] 总字符数: {total_chars:,}")
+        print(f"   [页面] 平均字符/条目: {avg_chars:.0f}")
+        print(f"   [图表上升] 有效条目: {non_empty_count}/{len(all_texts)} ({non_empty_count / len(all_texts) * 100:.1f}%)")
 
         # 显示前几个条目的简要信息
-        print(f"   📋 前几个条目:")
+        print(f"   [剪贴板] 前几个条目:")
         for i, (key, text) in enumerate(list(all_texts.items())[:3]):
             text_preview = text[:50] + "..." if len(text) > 50 else text
             print(f"      {key}: {text_preview}")
@@ -1429,9 +1429,9 @@ def print_json_info(json_path, all_texts, args):
         end_index = min(end_index, len(all_texts))
         items_to_process = end_index - start_index
 
-        print(f"\n🎯 处理计划:")
-        print(f"   📄 处理范围: 第{start_index + 1}条 - 第{end_index}条 (共{items_to_process}条)")
-        print(f"   🎓 知识领域: {args.domain}")
+        print(f"\n[目标] 处理计划:")
+        print(f"   [页面] 处理范围: 第{start_index + 1}条 - 第{end_index}条 (共{items_to_process}条)")
+        print(f"   [符号] 知识领域: {args.domain}")
 
 
 def filter_texts_by_range(all_texts, start_index, max_items):
@@ -1452,7 +1452,7 @@ def filter_texts_by_range(all_texts, start_index, max_items):
     logger.info(f"过滤文本范围: {start_index}-{end_index}, 共{len(filtered_texts)}条")
     return filtered_texts
     """从图片文件夹提取文本"""
-    print(f"\n🖼️  第一步：图片文件夹OCR提取")
+    print(f"\n[图片]  第一步：图片文件夹OCR提取")
 
     image_extractor = ImageFolderOCRExtractor(
         images_path, args.ocr_engine, args.ocr_lang, args.batch_size)
@@ -1491,7 +1491,7 @@ def filter_texts_by_range(all_texts, start_index, max_items):
 
 def extract_from_pdf(pdf_path, args):
     """从PDF提取文本"""
-    print(f"\n📄 第一步：PDF分批OCR提取")
+    print(f"\n[页面] 第一步：PDF分批OCR提取")
 
     ocr_extractor = EnhancedPDFOCRExtractor(
         pdf_path, args.ocr_engine, args.ocr_lang, args.batch_size)
@@ -1541,15 +1541,15 @@ def display_extraction_stats(all_texts, content_type):
     total_chars = sum(len(text) for text in all_texts.values())
     avg_chars = total_chars / len(all_texts) if all_texts else 0
 
-    print(f"\n📊 OCR统计结果:")
-    print(f"   ✅ 成功处理: {len(all_texts)} {content_type}")
-    print(f"   📝 总字符数: {total_chars:,}")
-    print(f"   📄 平均字符/{content_type[:-1]}: {avg_chars:.0f}")
+    print(f"\n[条形图] OCR统计结果:")
+    print(f"   [成功] 成功处理: {len(all_texts)} {content_type}")
+    print(f"   [备忘录] 总字符数: {total_chars:,}")
+    print(f"   [页面] 平均字符/{content_type[:-1]}: {avg_chars:.0f}")
 
     # 显示文本质量统计
     non_empty_count = sum(1 for text in all_texts.values() if text.strip())
     print(
-        f"   📈 有效{content_type}: {non_empty_count}/{len(all_texts)} ({non_empty_count / len(all_texts) * 100:.1f}%)")
+        f"   [图表上升] 有效{content_type}: {non_empty_count}/{len(all_texts)} ({non_empty_count / len(all_texts) * 100:.1f}%)")
 
 
 def display_model_info(llm_extractor):
@@ -1560,18 +1560,18 @@ def display_model_info(llm_extractor):
             actual_device = str(next(llm_extractor.model.parameters()).device)
             total_params = sum(p.numel() for p in llm_extractor.model.parameters())
 
-            print(f"\n📊 模型信息:")
-            print(f"   📂 模型路径: {llm_extractor.model_path}")
-            print(f"   🎯 目标设备: {llm_extractor.device}")
-            print(f"   ✅ 实际设备: {actual_device}")
-            print(f"   🔧 参数量: {total_params / 1e9:.1f}B")
+            print(f"\n[条形图] 模型信息:")
+            print(f"   [文件夹开] 模型路径: {llm_extractor.model_path}")
+            print(f"   [目标] 目标设备: {llm_extractor.device}")
+            print(f"   [成功] 实际设备: {actual_device}")
+            print(f"   [扳手] 参数量: {total_params / 1e9:.1f}B")
 
             # GPU信息
             if torch.cuda.is_available() and "cuda" in actual_device:
                 gpu_memory_used = torch.cuda.memory_allocated() / 1024 ** 3
                 gpu_memory_total = torch.cuda.get_device_properties(0).total_memory / 1024 ** 3
                 print(
-                    f"   💾 GPU显存: {gpu_memory_used:.1f}GB/{gpu_memory_total:.1f}GB ({gpu_memory_used / gpu_memory_total * 100:.1f}%)")
+                    f"   [软盘] GPU显存: {gpu_memory_used:.1f}GB/{gpu_memory_total:.1f}GB ({gpu_memory_used / gpu_memory_total * 100:.1f}%)")
 
             print()
     except Exception as e:
@@ -1580,7 +1580,7 @@ def display_model_info(llm_extractor):
 
 def cleanup_temp_files(args):
     """清理临时文件"""
-    cleanup_temp_files = input("\n🧹 是否清理临时文件? (y/N): ")
+    cleanup_temp_files = input("\n[清理] 是否清理临时文件? (y/N): ")
     if cleanup_temp_files.lower() in ['y', 'yes']:
         # 清理PDF批次文件
         temp_files = list(TEMP_DIR.glob("ocr_batch_*.json"))
@@ -1589,7 +1589,7 @@ def cleanup_temp_files(args):
 
         for temp_file in temp_files:
             temp_file.unlink()
-        print(f"   ✅ 已清理 {len(temp_files)} 个临时文件")
+        print(f"   [成功] 已清理 {len(temp_files)} 个临时文件")
 
 
 # ==================== 主程序 ====================
@@ -1668,7 +1668,7 @@ def main():
 
     # 验证输入参数
     if not args.pdf and not args.images and not args.json:
-        print("❌ 请指定输入源: --pdf, --images 或 --json")
+        print("[错误] 请指定输入源: --pdf, --images 或 --json")
         parser.print_help()
         return
 
@@ -1788,7 +1788,7 @@ def main():
     display_extraction_stats(all_texts, content_type)
 
     # 第二步：LLM批量知识提取
-    print(f"\n🧠 第二步：LLM批量知识提取")
+    print(f"\n[模型] 第二步：LLM批量知识提取")
     llm_extractor = LLMKnowledgeExtractor(args.model, args.use_gpu)
 
     # 显示模型信息
@@ -1798,51 +1798,51 @@ def main():
     all_knowledge_points = llm_extractor.extract_knowledge_from_pages_batch(
         all_texts, args.domain, temperature=0.2)
 
-    print(f"\n📊 知识提取统计:")
-    print(f"   🎯 提取概念: {len(all_knowledge_points)} 个")
+    print(f"\n[条形图] 知识提取统计:")
+    print(f"   [目标] 提取概念: {len(all_knowledge_points)} 个")
     if all_knowledge_points:
         avg_per_item = len(all_knowledge_points) / len(all_texts)
-        print(f"   📄 平均概念/{content_type[:-1]}: {avg_per_item:.1f}")
+        print(f"   [页面] 平均概念/{content_type[:-1]}: {avg_per_item:.1f}")
 
     # 第三步：提取关系
-    print(f"\n🔗 第三步：提取概念关系")
+    print(f"\n[链接] 第三步：提取概念关系")
     relationships = llm_extractor.extract_relationships_from_knowledge(all_knowledge_points)
-    print(f"   🔗 提取关系: {len(relationships)} 个")
+    print(f"   [链接] 提取关系: {len(relationships)} 个")
 
     # 第四步：创建知识图谱
-    print(f"\n📊 第四步：创建知识图谱")
+    print(f"\n[条形图] 第四步：创建知识图谱")
     success = llm_extractor.create_knowledge_graph(all_knowledge_points, relationships, args.output)
 
     if success:
         output_path = OUTPUT_DIR / args.output if not Path(args.output).is_absolute() else Path(args.output)
-        print(f"\n✅ 知识图谱创建完成!")
-        print(f"   📁 保存路径: {output_path}")
-        print(f"   🎯 节点数量: {len(all_knowledge_points)}")
-        print(f"   🔗 关系数量: {len(relationships)}")
+        print(f"\n[成功] 知识图谱创建完成!")
+        print(f"   [文件夹] 保存路径: {output_path}")
+        print(f"   [目标] 节点数量: {len(all_knowledge_points)}")
+        print(f"   [链接] 关系数量: {len(relationships)}")
 
         # 第五步：导入Neo4j（可选）
         if args.import_neo4j:
-            print(f"\n🗄️  第五步：导入到Neo4j数据库")
+            print(f"\n[文件柜]  第五步：导入到Neo4j数据库")
             neo4j_importer = Neo4jImporter(args.neo4j_uri, args.neo4j_user, args.neo4j_password)
             if neo4j_importer.import_knowledge_graph(output_path, clear_db=True):
-                print(f"   ✅ 成功导入到Neo4j: {args.neo4j_uri}")
+                print(f"   [成功] 成功导入到Neo4j: {args.neo4j_uri}")
             else:
-                print(f"   ❌ Neo4j导入失败")
+                print(f"   [错误] Neo4j导入失败")
     else:
         logger.error("知识图谱创建失败")
 
     # 清理临时文件
     cleanup_temp_files(args)
 
-    print(f"\n🎉 === 增强版知识提取流程完成 ===")
+    print(f"\n[完成] === 增强版知识提取流程完成 ===")
 
     # 显示最终统计
     if success:
-        print(f"\n📈 最终统计:")
-        print(f"   📄 处理{content_type}: {len(all_texts)}")
-        print(f"   🎯 提取概念: {len(all_knowledge_points)}")
-        print(f"   🔗 提取关系: {len(relationships)}")
-        print(f"   💾 输出文件: {output_path}")
+        print(f"\n[图表上升] 最终统计:")
+        print(f"   [页面] 处理{content_type}: {len(all_texts)}")
+        print(f"   [目标] 提取概念: {len(all_knowledge_points)}")
+        print(f"   [链接] 提取关系: {len(relationships)}")
+        print(f"   [软盘] 输出文件: {output_path}")
 
 
 if __name__ == "__main__":
