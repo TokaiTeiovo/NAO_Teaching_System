@@ -1150,7 +1150,6 @@ async def start_server(host="localhost", port=8765):
 [灯泡] 主要功能:
    [放大镜左] 知识图谱搜索
    [知识] 概念关系查询
-   [路径]  学习路径规划
    [思考] 知识增强对话
 
 [扳手] 按 Ctrl+C 退出服务器
